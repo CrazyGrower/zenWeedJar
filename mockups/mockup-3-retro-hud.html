@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PixelStash — Maquette 3 : Retro Game HUD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#2c2b3a; --bg2:#232232;
+    --panel:#efe6cf; --panel-d:#cdbf9e;
+    --frame:#3d3a52; --frame-l:#5a5677; --frame-dd:#1c1b28;
+    --slot:#e2d6b8; --slot-d:#b9a880;
+    --ink:#3a3350; --ink-soft:#7a7096;
+    --gold:#f5c95b; --sage:#8fb596; --mango:#f2ac5c; --liver:#c98fae; --mwhs:#9ac48f;
+    --glass:#e7f0ec;
+    --bar-thc:#f2ac5c; --indica:#b58fd6; --sativa:#8fc0a0;
+    image-rendering:pixelated;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family:'Silkscreen',monospace; color:var(--ink);
+    background:
+      repeating-linear-gradient(90deg, transparent 0 15px, rgba(255,255,255,.015) 15px 16px),
+      repeating-linear-gradient(0deg, transparent 0 15px, rgba(255,255,255,.015) 15px 16px),
+      radial-gradient(circle at 50% 0%, var(--bg) 0%, var(--bg2) 100%);
+    min-height:100vh; padding:22px 14px 50px; display:flex; flex-direction:column; align-items:center;
+  }
+  .wrap{width:100%; max-width:800px;}
+
+  /* Top HUD bar */
+  .topbar{
+    display:flex; justify-content:space-between; align-items:center;
+    background:var(--frame); border:4px solid var(--frame-dd);
+    box-shadow:inset 0 0 0 2px var(--frame-l); padding:12px 18px; margin-bottom:18px;
+  }
+  .topbar__title{font-family:'Press Start 2P'; font-size:12px; color:var(--gold); text-shadow:2px 2px 0 #000;}
+  .topbar__total{display:flex; align-items:center; gap:10px;}
+  .topbar__total .box{background:var(--frame-dd); border:2px solid var(--frame-l); padding:8px 14px;}
+  .topbar__total .lbl{font-size:8px; color:#b9b2d6; letter-spacing:2px;}
+  .topbar__total .val{font-family:'Press Start 2P'; font-size:16px; color:#fff; margin-top:4px;}
+
+  .layout{display:grid; grid-template-columns:1fr 260px; gap:16px;}
+  @media(max-width:640px){ .layout{grid-template-columns:1fr;} }
+
+  /* Inventory grid */
+  .inv{
+    background:var(--frame); border:4px solid var(--frame-dd);
+    box-shadow:inset 0 0 0 2px var(--frame-l); padding:16px;
+  }
+  .inv__head{font-size:9px; letter-spacing:2px; color:#c7c0e0; margin-bottom:14px;}
+  .grid{display:grid; grid-template-columns:repeat(3,1fr); gap:12px;}
+  .slot{
+    background:var(--slot); border:3px solid var(--slot-d);
+    box-shadow:inset 2px 2px 0 rgba(255,255,255,.5), inset -2px -2px 0 rgba(0,0,0,.12);
+    padding:10px 6px 8px; display:flex; flex-direction:column; align-items:center; cursor:pointer;
+    transition:transform .1s steps(2);
+  }
+  .slot:hover{transform:translateY(-3px);}
+  .slot.sel{border-color:var(--gold); box-shadow:0 0 0 3px var(--gold), inset 2px 2px 0 rgba(255,255,255,.5);}
+  .slot.empty{align-items:center; justify-content:center; color:var(--ink-soft); font-size:22px; min-height:150px;}
+
+  .jar{width:56px;}
+  .jar__lid{height:10px; margin:0 8px; background:var(--cap); border:2px solid rgba(0,0,0,.3); border-bottom:none;}
+  .jar__body{position:relative; height:66px; background:var(--glass); border:2px solid #b4cdc6; overflow:hidden;}
+  .jar__fill{position:absolute; left:0; right:0; bottom:0; height:var(--fill); background:var(--cap); opacity:.9;
+    background-image:repeating-linear-gradient(45deg, rgba(0,0,0,.06) 0 2px, transparent 2px 5px);}
+  .jar__shine{position:absolute; top:5px; left:6px; width:5px; height:36px; background:rgba(255,255,255,.55);}
+  .slot__name{font-size:10px; font-weight:700; margin-top:8px; color:var(--ink);}
+  .slot__meta{font-size:8px; color:var(--ink-soft); margin-top:3px;}
+  .slot__w{font-size:9px; color:#3a3350; margin-top:5px; background:var(--gold); padding:2px 6px; border:1px solid #c99a2c;}
+
+  /* Detail panel */
+  .detail{
+    background:var(--panel); border:4px solid var(--panel-d);
+    box-shadow:inset 0 0 0 2px #fff; padding:16px;
+  }
+  .detail__title{font-family:'Press Start 2P'; font-size:13px; color:var(--ink); margin-bottom:4px;}
+  .detail__sub{font-size:9px; color:var(--ink-soft); margin-bottom:14px; letter-spacing:1px;}
+  .stat{margin-bottom:14px;}
+  .stat__lbl{font-size:8px; letter-spacing:2px; color:var(--ink-soft); margin-bottom:5px;}
+  .stat__val{font-family:'Press Start 2P'; font-size:14px; color:var(--ink);}
+  .thc-bar,.ratio{height:14px; background:#d8cbaa; border:2px solid var(--panel-d); position:relative; overflow:hidden;}
+  .thc-bar>span{position:absolute; left:0; top:0; bottom:0; width:74%; background:var(--bar-thc);
+    background-image:repeating-linear-gradient(45deg, rgba(255,255,255,.25) 0 3px, transparent 3px 6px);}
+  .ratio>.i{position:absolute; left:0; top:0; bottom:0; width:60%; background:var(--indica);}
+  .ratio>.s{position:absolute; right:0; top:0; bottom:0; width:40%; background:var(--sativa);}
+  .ratio-legend{display:flex; justify-content:space-between; font-size:8px; margin-top:4px; color:var(--ink-soft);}
+  .notes{font-size:9px; line-height:1.7; color:#5a5040; background:#f6efdb; border:2px dashed var(--panel-d); padding:8px;}
+  .actions{display:flex; flex-direction:column; gap:8px; margin-top:16px;}
+  .btn{font-family:'Silkscreen'; font-weight:700; font-size:10px; padding:9px; cursor:pointer; border:3px solid; letter-spacing:1px;}
+  .btn--adjust{background:var(--gold); border-color:#c99a2c; color:#4a3510; box-shadow:0 3px 0 #c99a2c;}
+  .btn--edit{background:var(--sage); border-color:#6f9a76; color:#204028; box-shadow:0 3px 0 #6f9a76;}
+  .btn--del{background:#e79a9a; border-color:#c26a6a; color:#5a2020; box-shadow:0 3px 0 #c26a6a;}
+  .btn:active{transform:translateY(3px); box-shadow:none;}
+
+  .caption{grid-column:1/-1; margin-top:10px; text-align:center; font-size:9px; color:#b9b2d6; letter-spacing:1px; line-height:1.8;}
+  .caption b{color:var(--gold);}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="topbar__title">PIXELSTASH</div>
+      <div class="topbar__total">
+        <span style="font-size:16px;">📦</span>
+        <div class="box"><div class="lbl">TOTAL</div><div class="val">237g</div></div>
+      </div>
+    </div>
+
+    <div class="layout">
+      <div class="inv">
+        <div class="inv__head">▶ INVENTAIRE · 4 BOCAUX</div>
+        <div class="grid">
+          <div class="slot" style="--cap:var(--mwhs); --fill:100%;">
+            <div class="jar"><div class="jar__lid"></div><div class="jar__body"><div class="jar__fill"></div><div class="jar__shine"></div></div></div>
+            <div class="slot__name">Mwhs</div><div class="slot__meta">13/07</div><div class="slot__w">77g</div>
+          </div>
+          <div class="slot sel" style="--cap:var(--mango); --fill:84%;">
+            <div class="jar"><div class="jar__lid"></div><div class="jar__body"><div class="jar__fill"></div><div class="jar__shine"></div></div></div>
+            <div class="slot__name">Mango</div><div class="slot__meta">23/07</div><div class="slot__w">65g</div>
+          </div>
+          <div class="slot" style="--cap:var(--mango); --fill:52%;">
+            <div class="jar"><div class="jar__lid"></div><div class="jar__body"><div class="jar__fill"></div><div class="jar__shine"></div></div></div>
+            <div class="slot__name">Mango</div><div class="slot__meta">10/04</div><div class="slot__w">40g</div>
+          </div>
+          <div class="slot" style="--cap:var(--liver); --fill:71%;">
+            <div class="jar"><div class="jar__lid"></div><div class="jar__body"><div class="jar__fill"></div><div class="jar__shine"></div></div></div>
+            <div class="slot__name">Liver</div><div class="slot__meta">10/04</div><div class="slot__w">55g</div>
+          </div>
+          <div class="slot empty">+</div>
+          <div class="slot empty" style="opacity:.4;">·</div>
+        </div>
+      </div>
+
+      <div class="detail">
+        <div class="detail__title">Mango</div>
+        <div class="detail__sub">🌱 RÉCOLTE 23/07</div>
+
+        <div class="stat">
+          <div class="stat__lbl">POIDS</div>
+          <div class="stat__val">65 g</div>
+        </div>
+        <div class="stat">
+          <div class="stat__lbl">THC · 22%</div>
+          <div class="thc-bar"><span></span></div>
+        </div>
+        <div class="stat">
+          <div class="stat__lbl">INDICA / SATIVA</div>
+          <div class="ratio"><div class="i"></div><div class="s"></div></div>
+          <div class="ratio-legend"><span>INDICA 60%</span><span>40% SATIVA</span></div>
+        </div>
+        <div class="stat">
+          <div class="stat__lbl">NOTES</div>
+          <div class="notes">Doux, fruité. Effet relax en soirée. Bon rendement.</div>
+        </div>
+
+        <div class="actions">
+          <button class="btn btn--adjust">⚖ AJUSTER POIDS</button>
+          <button class="btn btn--edit">✎ ÉDITER</button>
+          <button class="btn btn--del">✖ SUPPRIMER</button>
+        </div>
+      </div>
+
+      <div class="caption">
+        MAQUETTE 3 — <b>« RETRO GAME HUD »</b> · grille d'inventaire + panneau de détail (THC, indica/sativa, notes)<br>
+        Style menu de jeu · idéal pour afficher toutes les infos d'un coup
+      </div>
+    </div>
+  </div>
+</body>
+</html>

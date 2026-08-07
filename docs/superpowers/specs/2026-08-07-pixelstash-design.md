@@ -113,6 +113,46 @@ zenWeedJar/
     └── app.js
 ```
 
+## Direction visuelle validée (maquette « Lo-Fi Room »)
+
+Maquette de référence : `mockups/mockup-2-lofi-room.html` (validée). Ambiance dusk /
+coucher de soleil cozy. Les 3 explorations sont dans `mockups/`.
+
+Éléments actés :
+
+- **Scène** : pièce en coupe, mur prune, **fenêtre** en haut à droite = source de
+  lumière ; le **soleil est posé sur le barreau vertical** de la fenêtre. Signature =
+  **rayon de lumière** chaud qui traverse la scène (poussières flottantes).
+- **HUD** : étiquette kraft suspendue « STASH TOTAL 237g ». **Sans emoji** sur la pancarte.
+- **Étagère** : plusieurs rangées de slots ; les emplacements vides sont des
+  **slots fantômes** (bocaux en pointillé) pour montrer la place dispo. La maquette
+  montre 12 slots (2×6) ; le nombre est flexible.
+- **Bocaux** : pixel art SVG (forme mason, bouchon à vis, verre + reflet). Le
+  **bouchon prend la couleur de la variété** (`color_tag`) ; le **contenu est vert**
+  (weed). Niveau de remplissage **proportionnel au poids** (relatif au bocal le plus lourd).
+- **Contenu** : **5 sprites de buds** pixel art réutilisés aléatoirement pour remplir.
+- **Étiquette** : petit tag kraft **au pied du bocal** (nom + date), qui **suit le
+  bocal au survol** (hover).
+- **Chat** : chat **noir aux yeux jaunes**, décoratif.
+
+## Notes d'implémentation / à revisiter
+
+Points à travailler pendant l'implémentation (validés comme direction, à raffiner) :
+
+1. **Remplissage réaliste** : les bocaux doivent paraître *réellement remplis* — les
+   buds doivent occuper densément tout le volume jusqu'au niveau, pas juste quelques
+   images « posées » dedans. Revoir la densité de packing et le rendu des sprites de
+   buds pour un effet plein et naturel.
+2. **Sprites de buds** : améliorer le dessin des 5 têtes de weed pixel art (plus
+   réalistes / détaillées) — itération prévue.
+3. **Étiquette au hover** : l'étiquette doit se déplacer avec le bocal au survol (fait
+   dans la maquette : jar + label liftés ensemble).
+4. **HUD** : pas d'emoji sur la pancarte du total.
+5. **Chat (bonus)** : design à revoir ; faire **suivre les yeux / la tête du chat au
+   curseur de la souris** (effet regard qui suit) si possible.
+6. **Modale de détail** (au clic sur un bocal) : à dessiner dans le même style —
+   poids, THC %, barre indica/sativa, notes, et actions Ajuster poids / Éditer / Supprimer.
+
 ## Non-objectifs (YAGNI)
 
 - Pas de comptes utilisateurs / multi-tenant.
