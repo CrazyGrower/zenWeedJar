@@ -24,6 +24,7 @@ test('POST /api/jars creates a jar', async () => {
 test('POST /api/jars rejects invalid payload with 400', async () => {
   const res = await request(appWithDb()).post('/api/jars').send({ weight_g: 5 });
   assert.equal(res.status, 400);
+  assert.ok(res.body.error);
 });
 
 test('PUT /api/jars/:id updates a jar', async () => {
@@ -37,6 +38,7 @@ test('PUT /api/jars/:id updates a jar', async () => {
 test('PUT /api/jars/:id returns 404 for unknown id', async () => {
   const res = await request(appWithDb()).put('/api/jars/9999').send({ weight_g: 1 });
   assert.equal(res.status, 404);
+  assert.equal(res.body.error, 'jar not found');
 });
 
 test('DELETE /api/jars/:id removes a jar', async () => {
@@ -51,4 +53,5 @@ test('DELETE /api/jars/:id removes a jar', async () => {
 test('DELETE /api/jars/:id returns 404 for unknown id', async () => {
   const res = await request(appWithDb()).delete('/api/jars/9999');
   assert.equal(res.status, 404);
+  assert.equal(res.body.error, 'jar not found');
 });

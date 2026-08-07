@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { listJars, getJar, createJar, updateJar, deleteJar, ValidationError } from './jars.js';
+import { listJars, createJar, updateJar, deleteJar, ValidationError } from './jars.js';
 
 export function createApp(db) {
   const app = express();
