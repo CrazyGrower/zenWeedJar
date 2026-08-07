@@ -14,6 +14,9 @@ function validate(data, { partial = false } = {}) {
   }
 
   if (!partial || 'weight_g' in data) {
+    if (data.weight_g == null || data.weight_g === '') {
+      throw new ValidationError('weight_g must be a number >= 0');
+    }
     const w = Number(data.weight_g);
     if (!Number.isFinite(w) || w < 0) {
       throw new ValidationError('weight_g must be a number >= 0');
