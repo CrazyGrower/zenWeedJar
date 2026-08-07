@@ -1,0 +1,17 @@
+{
+  "name": "pixelstash",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "express": "^4.19.0"
+  },
+  "devDependencies": {
+    "supertest": "^7.0.0"
+  }
+}
