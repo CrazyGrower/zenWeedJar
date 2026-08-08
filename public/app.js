@@ -125,19 +125,65 @@ function openDetail(jar) {
 
 let jars = [];
 
-function maxWeight() { return jars.reduce((m, j) => Math.max(m, j.weight_g), 0); }
-
 function ghostSlot() {
   return `<div class="slot"><svg class="jar ghost" viewBox="0 0 32 46" shape-rendering="crispEdges">
     <use href="#sil" fill="none" stroke="rgba(247,233,207,.20)" stroke-width="0.7"/></svg></div>`;
 }
 
-function filledSlot(jar, max) {
-  return `<div class="slot"><div class="jarwrap" data-id="${jar.id}">
-    ${JarSvg.buildJar(jar, max)}
+function filledSlot(jar) {
+  // Deterministic nudge so the shelf doesn't read as a tidy row. Keyed on the
+  // jar id, so a jar keeps its offset across re-renders.
+  const jx = (hash(jar.id, 7) % 13) - 6;
+  return `<div class="slot"><div class="jarwrap" data-id="${jar.id}" style="--jx:${jx}px">
+    ${JarSvg.buildJar(jar)}
     <div class="label"><span class="n">${escapeHtml(jar.name)}</span>
       <span class="d">${escapeHtml(jar.harvest_date || '')}</span></div>
   </div></div>`;
+}
+
+// splitmix32 mixer — same jar id and salt always give the same number, so
+// placement survives a re-render instead of jumping after every edit. The
+// avalanche matters: a weaker mix left the low bits correlated for small
+// sequential ids, which put every jar in an even column and made the "random"
+// shelf read as a grid.
+function hash(id, salt) {
+  let x = (Math.imul(Number(id) || 0, 2654435761) ^ Math.imul(salt, 2246822519)) >>> 0;
+  x = Math.imul(x ^ (x >>> 16), 2246822519) >>> 0;
+  x = Math.imul(x ^ (x >>> 13), 3266489917) >>> 0;
+  return (x ^ (x >>> 16)) >>> 0;
+}
+
+// Scatter jars instead of filling slots left to right. Jars are dealt round
+// robin across the shelves so no shelf sits empty while another is full, and
+// the column within a shelf comes from the jar's id hash — random-looking, but
+// the same on every re-render rather than jumping after each edit.
+// Columns are taken from a shuffled order rather than a hashed column with
+// linear probing: probing hands a colliding jar the next column along, which
+// packs jars into contiguous runs and undoes the scattering.
+function shuffledColumns(row, perRow) {
+  const cols = Array.from({ length: perRow }, (_, i) => i);
+  for (let i = perRow - 1; i > 0; i--) {
+    const j = hash(row, 9 + i) % (i + 1);
+    [cols[i], cols[j]] = [cols[j], cols[i]];
+  }
+  return cols;
+}
+
+function placeJars(list, rows, perRow) {
+  const slots = new Array(rows * perRow).fill(null);
+  // Sorting by hash rather than list order means editing a jar never moves it;
+  // only adding or removing one re-deals the shelves.
+  const ordered = [...list].sort((a, b) => hash(a.id, 5) - hash(b.id, 5));
+  const taken = Array.from({ length: rows }, () => 0);
+
+  ordered.forEach((jar, k) => {
+    let row = k % rows;
+    while (taken[row] >= perRow) row = (row + 1) % rows; // shelf full: spill onward
+    const col = shuffledColumns(row, perRow)[taken[row]];
+    taken[row] += 1;
+    slots[row * perRow + col] = jar;
+  });
+  return slots;
 }
 
 function escapeHtml(s) {
@@ -148,9 +194,8 @@ function escapeHtml(s) {
 function renderShelves(list) {
   const PER_ROW = 6;
   const rows = Math.max(2, Math.ceil(list.length / PER_ROW));
-  const max = maxWeight();
-  const cells = list.map((j) => filledSlot(j, max));
-  while (cells.length < rows * PER_ROW) cells.push(ghostSlot());
+  const cells = placeJars(list, rows, PER_ROW)
+    .map((jar) => (jar ? filledSlot(jar) : ghostSlot()));
 
   let html = '';
   for (let r = 0; r < rows; r++) {
@@ -168,8 +213,8 @@ function renderShelves(list) {
   });
 }
 
-function renderHud() {
-  const total = Math.round(jars.reduce((s, j) => s + j.weight_g, 0));
+function renderHud(list) {
+  const total = Math.round(list.reduce((s, j) => s + j.weight_g, 0));
   document.getElementById('hud-total').textContent = `${total}g`;
 }
 
@@ -191,7 +236,7 @@ function setOfflineNotice(show) {
 async function loadAndRender() {
   try {
     jars = await Api.list();
-    renderHud();
+    renderHud(jars);
     renderShelves(jars);
     setOfflineNotice(false);
     return jars;
@@ -203,7 +248,16 @@ async function loadAndRender() {
   }
 }
 
+// On a screen narrower than the room, open on the middle of it rather than the
+// left edge — that's where the add button lives. No-op once the whole scene
+// fits, and it only fires on load, so it never fights a swipe in progress.
+function centreStage() {
+  const stage = document.getElementById('stage');
+  if (stage) stage.scrollLeft = (stage.scrollWidth - stage.clientWidth) / 2;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   loadAndRender();
+  centreStage();
   document.getElementById('add-btn').addEventListener('click', () => openForm());
 });
