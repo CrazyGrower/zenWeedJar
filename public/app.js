@@ -1,6 +1,65 @@
-// TEMPORARY STUB — replaced by Task 9 (openForm).
-// Remove this once the real implementation lands.
-function openForm() {}
+const CAP_COLORS = ['#79a67e', '#e2a04c', '#b07d9c', '#8fb0d0', '#d08fa8'];
+
+function openForm(jar) {
+  const dlg = document.getElementById('form-dialog');
+  const editing = !!jar;
+  const j = jar || { name: '', harvest_date: '', weight_g: '', thc_percent: '', indica_pct: '', notes: '', color_tag: CAP_COLORS[0] };
+
+  dlg.innerHTML = `
+    <form method="dialog" class="modal">
+      <h2>${editing ? 'EDITER' : 'NOUVEAU BOCAL'}</h2>
+      <div class="row"><label>NOM *</label><input name="name" value="${escapeHtml(j.name)}" required></div>
+      <div class="row"><label>RÉCOLTE (ex 13/07)</label><input name="harvest_date" value="${escapeHtml(j.harvest_date || '')}"></div>
+      <div class="row"><label>POIDS (g) *</label><input name="weight_g" type="number" step="0.1" min="0" value="${j.weight_g}" required></div>
+      <div class="row"><label>THC %</label><input name="thc_percent" type="number" step="0.1" min="0" value="${j.thc_percent ?? ''}"></div>
+      <div class="row"><label>% INDICA (0-100)</label><input name="indica_pct" type="number" step="1" min="0" max="100" value="${j.indica_pct ?? ''}"></div>
+      <div class="row"><label>COULEUR BOUCHON</label><input name="color_tag" value="${escapeHtml(j.color_tag || CAP_COLORS[0])}"></div>
+      <div class="row"><label>NOTES</label><textarea name="notes" rows="2">${escapeHtml(j.notes || '')}</textarea></div>
+      <div class="actions">
+        <button class="btn btn--primary" value="save">${editing ? 'ENREGISTRER' : 'AJOUTER'}</button>
+        <button class="btn btn--ghost" value="cancel" formnovalidate>ANNULER</button>
+      </div>
+    </form>`;
+
+  const form = dlg.querySelector('form');
+  form.addEventListener('submit', async (e) => {
+    // NOTE: deviation from the brief's snippet. `form.returnValue` is only
+    // written by the browser's <form method="dialog"> default action, which
+    // runs AFTER this submit handler — so checking it here always sees the
+    // stale pre-submit value and never detects the cancel button. The
+    // submit event's `submitter` reflects the button that was actually
+    // activated and is available synchronously, so use that instead.
+    if (e.submitter && e.submitter.value === 'cancel') return;
+    e.preventDefault();
+    const fd = new FormData(form);
+    const data = Object.fromEntries(fd.entries());
+    try {
+      if (editing) await Api.update(jar.id, data);
+      else await Api.create(data);
+      dlg.close();
+      await loadAndRender();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+  dlg.showModal();
+}
+
+async function adjustWeight(jar) {
+  const input = prompt(`Ajuster le poids de ${jar.name} (ex -2 pour retirer 2g, +5 pour ajouter)`, '-2');
+  if (input == null) return;
+  const delta = Number(input);
+  if (!Number.isFinite(delta)) return alert('Valeur invalide');
+  const next = Math.max(0, jar.weight_g + delta);
+  await Api.update(jar.id, { weight_g: next });
+  await loadAndRender();
+}
+
+async function removeJar(jar) {
+  if (!confirm(`Supprimer le bocal "${jar.name}" (${jar.weight_g}g) ?`)) return;
+  await Api.remove(jar.id);
+  await loadAndRender();
+}
 
 function clampPct(n) {
   const v = Number(n);
