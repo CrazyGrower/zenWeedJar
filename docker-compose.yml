@@ -2,7 +2,7 @@ services:
   pixelstash:
     build: .
     ports:
-      - "3000:3000"
+      - "421:3000"
     volumes:
       - ./data:/app/data
     environment:
