@@ -1,7 +1,51 @@
-// TEMPORARY STUBS — replaced by Task 8 (openDetail) and Task 9 (openForm).
-// Remove these once the real implementations land.
-function openDetail() {}
+// TEMPORARY STUB — replaced by Task 9 (openForm).
+// Remove this once the real implementation lands.
 function openForm() {}
+
+function clampPct(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return 0;
+  return Math.max(0, Math.min(100, v));
+}
+
+function openDetail(jar) {
+  const dlg = document.getElementById('detail-dialog');
+  const indica = jar.indica_pct == null ? null : clampPct(jar.indica_pct);
+  const thc = jar.thc_percent == null ? null : clampPct(jar.thc_percent);
+  const weight = Number.isFinite(Number(jar.weight_g)) ? Number(jar.weight_g) : 0;
+
+  dlg.innerHTML = `
+    <div class="modal">
+      <h2>${escapeHtml(jar.name)}</h2>
+      <div class="sub">RÉCOLTE ${escapeHtml(jar.harvest_date || '—')}</div>
+
+      <div class="row"><label>POIDS</label>
+        <div style="font-family:'Press Start 2P';font-size:16px;">${weight} g</div></div>
+
+      ${thc == null ? '' : `<div class="row"><label>THC · ${escapeHtml(String(jar.thc_percent))}%</label>
+        <div class="bar"><span style="width:${thc}%"></span></div></div>`}
+
+      ${indica == null ? '' : `<div class="row"><label>INDICA ${indica}% / SATIVA ${100 - indica}%</label>
+        <div class="bar ratio"><div class="i" style="width:${indica}%"></div>
+        <div class="s" style="width:${100 - indica}%"></div></div></div>`}
+
+      ${!jar.notes ? '' : `<div class="row"><label>NOTES</label>
+        <div style="font-size:10px;line-height:1.6;color:#efe6cf;">${escapeHtml(jar.notes)}</div></div>`}
+
+      <div class="actions">
+        <button class="btn btn--primary" data-act="adjust">AJUSTER POIDS</button>
+        <button class="btn btn--edit" data-act="edit">EDITER</button>
+        <button class="btn btn--del" data-act="delete">SUPPRIMER</button>
+        <button class="btn btn--ghost" data-act="close">FERMER</button>
+      </div>
+    </div>`;
+
+  dlg.querySelector('[data-act="close"]').onclick = () => dlg.close();
+  dlg.querySelector('[data-act="edit"]').onclick = () => { dlg.close(); openForm(jar); };
+  dlg.querySelector('[data-act="adjust"]').onclick = () => { dlg.close(); adjustWeight(jar); };
+  dlg.querySelector('[data-act="delete"]').onclick = () => { dlg.close(); removeJar(jar); };
+  dlg.showModal();
+}
 
 let jars = [];
 
