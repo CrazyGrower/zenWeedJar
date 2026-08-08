@@ -16,7 +16,7 @@ window.Api = {
   },
   async remove(id) {
     const r = await fetch(`/api/jars/${id}`, { method: 'DELETE' });
-    if (!r.ok && r.status !== 204) throw new Error('delete failed');
+    if (!r.ok) throw new Error('delete failed');
     return null;
   },
 };

@@ -25,7 +25,7 @@
   }
 
   function buildJar(jar, maxWeight) {
-    const cap = jar.color_tag || '#79a67e';
+    const cap = /^#[0-9a-fA-F]{6}$/.test(jar.color_tag) ? jar.color_tag : '#79a67e';
     const disc = darken(cap, 0.18);
     const top = fillTop(jar.weight_g, maxWeight);
     const rnd = mulberry32((jar.id || 1) * 2654435761);
