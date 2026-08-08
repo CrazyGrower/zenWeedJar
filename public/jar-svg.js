@@ -23,14 +23,12 @@
   // the heaviest jar on the shelf, so a given weight always looks the same.
   const CAPACITY_G = 50;
 
-  // The interior clip (#jarInner) starts at y=19. A full jar used to fill to
-  // y=17, above that line, so its surface was sliced off flat by the clip
-  // instead of showing a ragged top of buds. Full now stops at 19.5, just
-  // inside the glass — and the surface row only ever jitters downwards (see
-  // pack), so no bud can stray back over the clip edge.
+  // #jarInner clips to the jar's outline, so the fill can run right up under
+  // the cap and the shoulder trims the buds along the glass instead of a
+  // straight edge. The neck starts at y=11; full stops at 11.5, just inside.
   function fillTop(weight, maxWeight) {
     const frac = maxWeight > 0 ? Math.min(1, Math.max(0, weight / maxWeight)) : 0;
-    return 44 - frac * 24.5; // full (frac 1) -> 19.5, empty -> 44
+    return 44 - frac * 32.5; // full (frac 1) -> 11.5, empty -> 44
   }
 
   function jarSvg(jar, grams, { seedSalt = 0, extraClass = '' } = {}) {
@@ -55,9 +53,10 @@
         for (const cx of cols) {
           const size = (7 + rnd() * 2).toFixed(1);
           const x = (cx + off + (rnd() * 2 - 1)).toFixed(1);
-          // The surface row dips below the fill line but never rises above it,
-          // so the top stays ragged without any bud crossing the clip edge.
-          const yy = (y + (row === 0 && offsetY === 0 ? rnd() * 1.6 : rnd() * 1.6 - 0.8)).toFixed(1);
+          // The surface row dips below the fill line but never rises above it.
+          // It gets a wider spread than the rows underneath, because a level
+          // top row is exactly what read as a clean horizontal cut.
+          const yy = (y + (row === 0 && offsetY === 0 ? rnd() * 3 : rnd() * 1.6 - 0.8)).toFixed(1);
           const b = BUDS[Math.floor(rnd() * BUDS.length)];
           out += `<use href="#${b}" x="${x}" y="${yy}" width="${size}" height="${size}"/>`;
         }
@@ -66,9 +65,10 @@
       return out;
     };
 
-    // A dark mass under everything, starting just below the pile's surface so
-    // the top row keeps its ragged silhouette against the empty glass.
-    const massTop = (top + 2.5).toFixed(1);
+    // A dark mass under everything, deep enough that its own straight top edge
+    // never shows through the gaps between the surface buds — that edge was
+    // the other half of the flat cut.
+    const massTop = (top + 6).toFixed(1);
     const mass = top < 43
       ? `<rect x="5" y="${massTop}" width="22" height="${(44 - Number(massTop)).toFixed(1)}" fill="#33512b"/>`
       : '';

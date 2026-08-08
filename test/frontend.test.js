@@ -32,7 +32,9 @@ function loadApp() {
   return ctx;
 }
 
-const CLIP_TOP = 19;   // #jarInner starts here; anything above is sliced flat
+// #jarInner clips to the jar outline (#sil), whose top edge — the neck, under
+// the cap — is y=11. Contents may fill right up to it; nothing may pass it.
+const NECK_TOP = 11;
 const JAR_BOTTOM = 44;
 
 function budTops(markup) {
@@ -41,17 +43,18 @@ function budTops(markup) {
 
 // --- jar-svg: the fill gauge -------------------------------------------------
 
-test('fillTop maps empty to the jar floor and full to just inside the clip', () => {
+test('fillTop maps empty to the jar floor and full to the brim', () => {
   const { fillTop } = loadJarSvg();
   assert.equal(fillTop(0, 50), JAR_BOTTOM);
-  assert.equal(fillTop(50, 50), 19.5);
-  assert.ok(fillTop(50, 50) > CLIP_TOP, 'a full jar must stay below the clip edge');
-  assert.equal(fillTop(25, 50), 31.75);
+  assert.equal(fillTop(50, 50), 11.5);
+  assert.ok(fillTop(50, 50) >= NECK_TOP, 'a full jar must not fill past the neck');
+  assert.ok(fillTop(50, 50) < 14, 'a full jar should reach the neck, not stop at the shoulder');
+  assert.equal(fillTop(25, 50), 27.75);
 });
 
 test('fillTop clamps out-of-range input instead of overflowing the jar', () => {
   const { fillTop } = loadJarSvg();
-  assert.equal(fillTop(999, 50), 19.5);
+  assert.equal(fillTop(999, 50), 11.5);
   assert.equal(fillTop(-5, 50), JAR_BOTTOM);
   assert.equal(fillTop(10, 0), JAR_BOTTOM, 'a zero capacity must not divide by zero');
 });
@@ -82,16 +85,32 @@ test('the second jar holds the overflow, capped at one jar of its own', () => {
 
 // --- jar-svg: the clip edge --------------------------------------------------
 
-test('no bud is ever drawn above the clip edge, at any weight or id', () => {
-  const { buildJar } = loadJarSvg();
+test('no bud is drawn above the fill line or past the neck, at any weight or id', () => {
+  const { buildJar, fillTop, CAPACITY_G } = loadJarSvg();
   let highest = Infinity;
   for (let id = 1; id <= 60; id++) {
     for (const weight_g of [0.5, 12, 33, 49, 50, 64, 99, 250]) {
       const tops = budTops(buildJar({ id, weight_g, color_tag: '#79a67e' }));
-      if (tops.length) highest = Math.min(highest, ...tops);
+      if (!tops.length) continue;
+      const surface = Math.min(...tops);
+      const line = fillTop(Math.min(weight_g, CAPACITY_G), CAPACITY_G);
+      // the surface may dip below the fill line, never rise above it
+      assert.ok(surface >= line - 0.05, `${weight_g}g/id${id}: bud at ${surface} above fill line ${line}`);
+      highest = Math.min(highest, surface);
     }
   }
-  assert.ok(highest > CLIP_TOP, `highest bud landed at ${highest}, clip edge is ${CLIP_TOP}`);
+  assert.ok(highest >= NECK_TOP, `highest bud landed at ${highest}, the neck is at ${NECK_TOP}`);
+});
+
+test('the contents are clipped to the jar outline, not to a rectangle', () => {
+  // A rectangular clip is invisible to the coordinate checks above: the buds
+  // are emitted at the right positions and simply get sliced when drawn. So
+  // this asserts the markup itself, which is the only place it shows.
+  const markup = read('index.html');
+  const clip = markup.match(/<clipPath id="jarInner">([\s\S]*?)<\/clipPath>/);
+  assert.ok(clip, 'the #jarInner clip path should exist');
+  assert.match(clip[1], /<use\s+href="#sil"\s*\/>/, 'it should clip to the jar silhouette');
+  assert.doesNotMatch(clip[1], /<rect/, 'a rect clip would put a flat ceiling on the fill');
 });
 
 // --- jar-svg: colour handling and XSS ---------------------------------------
