@@ -1,9 +1,11 @@
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { openDb } from './db.js';
 import { createApp } from './app.js';
 
-const DB_PATH = process.env.DB_PATH || './data/stash.db';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'stash.db');
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
 const db = openDb(DB_PATH);

@@ -40,6 +40,13 @@ function openForm(jar) {
       await loadAndRender();
     } catch (err) {
       alert(err.message);
+      await loadAndRender();
+      // A 400 means the user can fix the input right there (e.g. a bad
+      // name) — keep the dialog open so they don't retype everything.
+      // Any other failure (404 because the jar was deleted elsewhere,
+      // 500, network drop) isn't fixable by resubmitting this form, so
+      // close it and let the re-synced shelf reflect reality.
+      if (err.status !== 400) dlg.close();
     }
   });
   dlg.showModal();
@@ -156,7 +163,7 @@ function renderShelves(list) {
   container.querySelectorAll('.jarwrap').forEach((el) => {
     el.addEventListener('click', () => {
       const jar = jars.find((j) => j.id === Number(el.dataset.id));
-      if (jar) openDetail(jar); // defined in Task 8
+      if (jar) openDetail(jar);
     });
   });
 }
@@ -166,14 +173,37 @@ function renderHud() {
   document.getElementById('hud-total').textContent = `${total}g`;
 }
 
+function setOfflineNotice(show) {
+  const existing = document.getElementById('offline-notice');
+  if (!show) {
+    if (existing) existing.remove();
+    return;
+  }
+  document.getElementById('hud-total').textContent = 'HORS LIGNE';
+  if (existing) return;
+  const notice = document.createElement('div');
+  notice.id = 'offline-notice';
+  notice.className = 'hud__label';
+  notice.textContent = 'Serveur injoignable. Nouvel essai au prochain chargement.';
+  document.querySelector('.hud__tag').appendChild(notice);
+}
+
 async function loadAndRender() {
-  jars = await Api.list();
-  renderHud();
-  renderShelves(jars);
-  return jars;
+  try {
+    jars = await Api.list();
+    renderHud();
+    renderShelves(jars);
+    setOfflineNotice(false);
+    return jars;
+  } catch (err) {
+    jars = [];
+    renderShelves([]);
+    setOfflineNotice(true);
+    return jars;
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
   loadAndRender();
-  document.getElementById('add-btn').addEventListener('click', () => openForm()); // defined in Task 9
+  document.getElementById('add-btn').addEventListener('click', () => openForm());
 });

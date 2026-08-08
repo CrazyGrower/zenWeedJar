@@ -55,3 +55,14 @@ test('DELETE /api/jars/:id returns 404 for unknown id', async () => {
   assert.equal(res.status, 404);
   assert.equal(res.body.error, 'jar not found');
 });
+
+test('malformed JSON body yields a JSON error body, not an HTML stack trace', async () => {
+  const res = await request(appWithDb())
+    .post('/api/jars')
+    .set('Content-Type', 'application/json')
+    .send('{not valid json');
+  assert.equal(res.status, 400);
+  assert.match(res.headers['content-type'], /application\/json/);
+  assert.equal(typeof res.body.error, 'string');
+  assert.ok(res.body.error.length > 0);
+});

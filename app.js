@@ -38,5 +38,7 @@ export function createApp(db) {
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   app.use(express.static(path.join(__dirname, 'public')));
+
+  app.use((err, req, res, next) => res.status(err.status || 500).json({ error: err.message }));
   return app;
 }
