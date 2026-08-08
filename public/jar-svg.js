@@ -19,16 +19,20 @@
     };
   }
 
+  // One jar holds this much. Fill is measured against it rather than against
+  // the heaviest jar on the shelf, so a given weight always looks the same.
+  const CAPACITY_G = 50;
+
   function fillTop(weight, maxWeight) {
     const frac = maxWeight > 0 ? Math.min(1, Math.max(0, weight / maxWeight)) : 0;
     return 44 - frac * 27; // full (frac 1) -> 17, empty -> 44
   }
 
-  function buildJar(jar, maxWeight) {
+  function jarSvg(jar, grams, { seedSalt = 0, extraClass = '' } = {}) {
     const cap = /^#[0-9a-fA-F]{6}$/.test(jar.color_tag) ? jar.color_tag : '#79a67e';
     const disc = darken(cap, 0.18);
-    const top = fillTop(jar.weight_g, maxWeight);
-    const rnd = mulberry32((jar.id || 1) * 2654435761);
+    const top = fillTop(grams, CAPACITY_G);
+    const rnd = mulberry32(((jar.id || 1) + seedSalt) * 2654435761);
 
     let buds = '';
     const cols = [4, 9, 14, 19, 24];
@@ -46,7 +50,7 @@
     }
 
     return `
-      <svg class="jar" data-id="${jar.id}" viewBox="0 0 32 46" shape-rendering="crispEdges">
+      <svg class="jar${extraClass}" data-id="${jar.id}" viewBox="0 0 32 46" shape-rendering="crispEdges">
         <use href="#sil" fill="#e4f1ec" stroke="#b3ccc5" stroke-width="0.7"/>
         <g clip-path="url(#jarInner)">${buds}
           <rect x="8" y="21" width="2" height="18" fill="#fff" opacity=".3"/>
@@ -59,5 +63,19 @@
       </svg>`;
   }
 
-  global.JarSvg = { fillTop, buildJar, darken };
+  // Past one jar's worth, a second jar appears behind holding the overflow.
+  // It only ever doubles: 150g shows a full jar behind a full jar, same as
+  // 500g would. The stash is the number in the HUD, not a jar count.
+  function buildJar(jar) {
+    const grams = Math.max(0, Number(jar.weight_g) || 0);
+    const front = jarSvg(jar, Math.min(grams, CAPACITY_G));
+    if (grams <= CAPACITY_G) return front;
+
+    const overflow = Math.min(grams - CAPACITY_G, CAPACITY_G);
+    // A different seed so the second jar's buds don't mirror the first's.
+    const back = jarSvg(jar, overflow, { seedSalt: 977, extraClass: ' jar--back' });
+    return back + front;
+  }
+
+  global.JarSvg = { fillTop, buildJar, darken, CAPACITY_G };
 })(window);

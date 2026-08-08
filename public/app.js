@@ -125,19 +125,17 @@ function openDetail(jar) {
 
 let jars = [];
 
-function maxWeight(list) { return list.reduce((m, j) => Math.max(m, j.weight_g), 0); }
-
 function ghostSlot() {
   return `<div class="slot"><svg class="jar ghost" viewBox="0 0 32 46" shape-rendering="crispEdges">
     <use href="#sil" fill="none" stroke="rgba(247,233,207,.20)" stroke-width="0.7"/></svg></div>`;
 }
 
-function filledSlot(jar, max) {
+function filledSlot(jar) {
   // Deterministic nudge so the shelf doesn't read as a tidy row. Keyed on the
   // jar id, so a jar keeps its offset across re-renders.
   const jx = (hash(jar.id, 7) % 13) - 6;
   return `<div class="slot"><div class="jarwrap" data-id="${jar.id}" style="--jx:${jx}px">
-    ${JarSvg.buildJar(jar, max)}
+    ${JarSvg.buildJar(jar)}
     <div class="label"><span class="n">${escapeHtml(jar.name)}</span>
       <span class="d">${escapeHtml(jar.harvest_date || '')}</span></div>
   </div></div>`;
@@ -196,9 +194,8 @@ function escapeHtml(s) {
 function renderShelves(list) {
   const PER_ROW = 6;
   const rows = Math.max(2, Math.ceil(list.length / PER_ROW));
-  const max = maxWeight(list);
   const cells = placeJars(list, rows, PER_ROW)
-    .map((jar) => (jar ? filledSlot(jar, max) : ghostSlot()));
+    .map((jar) => (jar ? filledSlot(jar) : ghostSlot()));
 
   let html = '';
   for (let r = 0; r < rows; r++) {

@@ -71,8 +71,17 @@
   .jarwrap{position:relative; cursor:pointer; transition:transform .12s steps(2);
     transform:translateX(var(--jx,0px));}
   .jarwrap:hover{transform:translateX(var(--jx,0px)) translateY(-7px);}
+  /* Over one jar's worth (50g), a second jar holds the overflow behind the
+     first. The front jar needs its own stacking position or the absolutely
+     positioned back jar would paint on top of it. */
+  .jarwrap .jar{position:relative; z-index:1;}
+  /* Must out-specify `.jarwrap .jar` above, or the back jar keeps position:
+     relative, stays in flow and stacks above the front one instead of behind. */
+  .jarwrap .jar--back{position:absolute; left:0; top:0; z-index:0; pointer-events:none;
+    transform:translate(-17px,-9px) scale(.93); filter:brightness(.72) saturate(.85);}
   /* kraft label wrapped around the foot of the jar */
-  .jarwrap .label{position:absolute; left:50%; bottom:7%; transform:translateX(-50%);
+  /* z-index clears the front jar's z-index:1, which would otherwise cover it */
+  .jarwrap .label{position:absolute; z-index:2; left:50%; bottom:7%; transform:translateX(-50%);
     background:var(--kraft); border:2px solid var(--kraft-lo); padding:3px 5px 4px; text-align:center;
     width:62px; box-shadow:0 2px 0 rgba(0,0,0,.22); pointer-events:none;}
   .label .n{font-size:10px; font-weight:700; color:var(--kraft-ink); display:block; line-height:1;}
