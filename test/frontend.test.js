@@ -113,6 +113,19 @@ test('the contents are clipped to the jar outline, not to a rectangle', () => {
   assert.doesNotMatch(clip[1], /<rect/, 'a rect clip would put a flat ceiling on the fill');
 });
 
+test('body is not pinned to the viewport height, so the page can scroll', () => {
+  // Another invariant no coordinate check can see: with `height:100%` on body
+  // the document froze at exactly one screen, and on a phone — where the room
+  // is taller than the visible area — the add button became unreachable
+  // because there was no vertical scroll at all.
+  const css = read('style.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  const bodyRule = css.match(/(^|\})\s*body\s*\{([^}]*)\}/);
+  assert.ok(bodyRule, 'the body rule should exist');
+  assert.doesNotMatch(bodyRule[2], /(^|;)\s*height\s*:/, 'body must not have a fixed height');
+  assert.match(bodyRule[2], /min-height\s*:/, 'body should use min-height instead');
+  assert.doesNotMatch(css, /html\s*,\s*body\s*\{[^}]*height\s*:\s*100%/, 'nor via a shared html,body rule');
+});
+
 // --- jar-svg: colour handling and XSS ---------------------------------------
 
 test('color_tag is allowlisted to a hex colour, so markup cannot be injected', () => {

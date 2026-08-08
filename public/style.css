@@ -7,10 +7,16 @@
     image-rendering:pixelated;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
-  html,body{height:100%;}
+  /* Only html is pinned to the viewport. Giving body a fixed height too froze
+     the document at exactly one screen, so on a phone — where the room is
+     taller than the visible area — the page could not scroll at all and the
+     add button was simply unreachable. min-height lets it grow instead. */
+  html{height:100%;}
   body{
     font-family:'Silkscreen',monospace; color:var(--cream); background:#241c2e;
-    min-height:100%; display:flex; flex-direction:column; align-items:center; padding:24px 12px 40px;
+    min-height:100%;
+    min-height:100dvh; /* iOS: 100% tracks the largest viewport, dvh the visible one */
+    display:flex; flex-direction:column; align-items:center; padding:24px 12px 40px;
   }
 
   /* The room is a fixed-size pixel-art composition — everything inside is
