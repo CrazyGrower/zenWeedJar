@@ -34,20 +34,38 @@
     const top = fillTop(grams, CAPACITY_G);
     const rnd = mulberry32(((jar.id || 1) + seedSalt) * 2654435761);
 
-    let buds = '';
-    const cols = [4, 9, 14, 19, 24];
-    let row = 0;
-    for (let y = 44 - 9; y > top - 5; y -= 4) {
-      const off = row % 2 ? 2.5 : 0;
-      for (const cx of cols) {
-        const size = (9 + rnd() * 2).toFixed(1);
-        const x = (cx + off + (rnd() * 2 - 1)).toFixed(1);
-        const yy = (y + (rnd() * 2 - 1)).toFixed(1);
-        const b = BUDS[Math.floor(rnd() * BUDS.length)];
-        buds += `<use href="#${b}" x="${x}" y="${yy}" width="${size}" height="${size}"/>`;
+    // Two passes of smaller, tighter buds instead of one sparse pass of big
+    // ones: the back layer fills the gaps you used to see the glass through,
+    // and a shadow veil between the layers gives the pile some depth.
+    const pack = (offsetX, offsetY, step) => {
+      const cols = [3, 7, 11, 15, 19, 23];
+      let out = '';
+      let row = 0;
+      for (let y = 44 - 8 + offsetY; y > top - 4; y -= step) {
+        const off = (row % 2 ? 2 : 0) + offsetX;
+        for (const cx of cols) {
+          const size = (7 + rnd() * 2).toFixed(1);
+          const x = (cx + off + (rnd() * 2 - 1)).toFixed(1);
+          const yy = (y + (rnd() * 1.6 - 0.8)).toFixed(1);
+          const b = BUDS[Math.floor(rnd() * BUDS.length)];
+          out += `<use href="#${b}" x="${x}" y="${yy}" width="${size}" height="${size}"/>`;
+        }
+        row++;
       }
-      row++;
-    }
+      return out;
+    };
+
+    // A dark mass under everything, starting just below the pile's surface so
+    // the top row keeps its ragged silhouette against the empty glass.
+    const massTop = (top + 2.5).toFixed(1);
+    const mass = top < 43
+      ? `<rect x="5" y="${massTop}" width="22" height="${(44 - Number(massTop)).toFixed(1)}" fill="#33512b"/>`
+      : '';
+
+    const buds = mass
+      + pack(-1.5, 1.5, 3.4)
+      + `<rect x="5" y="${massTop}" width="22" height="${(44 - Number(massTop)).toFixed(1)}" fill="#16290f" opacity=".34"/>`
+      + pack(0, 0, 3.4);
 
     return `
       <svg class="jar${extraClass}" data-id="${jar.id}" viewBox="0 0 32 46" shape-rendering="crispEdges">
