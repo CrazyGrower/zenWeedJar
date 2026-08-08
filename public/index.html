@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PixelStash — Lo-Fi Room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<!-- reusable geometry: jar silhouette, clip, and 5 pixel-art weed buds -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <clipPath id="jarInner"><rect x="5" y="19" width="22" height="25"/></clipPath>
+    <path id="sil" d="M10 11 L22 11 L22 14 L24 14 L24 17 L26 17 L26 19 L27 19 L27 42 L26 42 L26 44 L6 44 L6 42 L5 42 L5 19 L6 19 L6 17 L8 17 L8 14 L10 14 Z"/>
+
+    <symbol id="bud1" viewBox="0 0 12 12">
+      <rect x="3" y="2" width="5" height="8" fill="#5f9450"/><rect x="2" y="4" width="8" height="5" fill="#5f9450"/><rect x="4" y="1" width="3" height="2" fill="#5f9450"/>
+      <rect x="3" y="8" width="6" height="2" fill="#3f6634"/><rect x="2" y="6" width="2" height="2" fill="#3f6634"/><rect x="8" y="5" width="2" height="3" fill="#3f6634"/>
+      <rect x="4" y="3" width="3" height="2" fill="#86bd70"/><rect x="5" y="6" width="2" height="2" fill="#86bd70"/>
+      <rect x="7" y="3" width="1" height="2" fill="#e0913f"/><rect x="4" y="1" width="1" height="1" fill="#e0913f"/>
+    </symbol>
+    <symbol id="bud2" viewBox="0 0 12 12">
+      <rect x="4" y="1" width="3" height="9" fill="#5f9450"/><rect x="3" y="4" width="6" height="5" fill="#5f9450"/>
+      <rect x="4" y="8" width="5" height="2" fill="#3f6634"/><rect x="3" y="6" width="2" height="2" fill="#3f6634"/>
+      <rect x="5" y="2" width="2" height="3" fill="#86bd70"/><rect x="6" y="5" width="2" height="2" fill="#86bd70"/>
+      <rect x="7" y="4" width="1" height="2" fill="#e0913f"/><rect x="4" y="9" width="1" height="1" fill="#e0913f"/>
+    </symbol>
+    <symbol id="bud3" viewBox="0 0 12 12">
+      <rect x="2" y="3" width="8" height="6" fill="#5f9450"/><rect x="3" y="2" width="6" height="1" fill="#5f9450"/><rect x="1" y="5" width="2" height="3" fill="#5f9450"/>
+      <rect x="2" y="7" width="8" height="2" fill="#3f6634"/>
+      <rect x="3" y="4" width="3" height="2" fill="#86bd70"/><rect x="6" y="4" width="2" height="2" fill="#86bd70"/>
+      <rect x="9" y="4" width="1" height="2" fill="#e0913f"/><rect x="5" y="2" width="1" height="1" fill="#e0913f"/>
+    </symbol>
+    <symbol id="bud4" viewBox="0 0 12 12">
+      <rect x="3" y="3" width="5" height="6" fill="#5f9450"/><rect x="4" y="2" width="3" height="1" fill="#5f9450"/><rect x="2" y="5" width="2" height="2" fill="#5f9450"/>
+      <rect x="3" y="7" width="5" height="2" fill="#3f6634"/>
+      <rect x="4" y="4" width="2" height="2" fill="#86bd70"/>
+      <rect x="7" y="4" width="1" height="2" fill="#e0913f"/>
+    </symbol>
+    <symbol id="bud5" viewBox="0 0 12 12">
+      <rect x="2" y="2" width="6" height="7" fill="#5f9450"/><rect x="7" y="4" width="3" height="4" fill="#5f9450"/><rect x="3" y="1" width="3" height="1" fill="#5f9450"/>
+      <rect x="2" y="7" width="7" height="2" fill="#3f6634"/><rect x="8" y="6" width="2" height="2" fill="#3f6634"/>
+      <rect x="3" y="3" width="3" height="2" fill="#86bd70"/><rect x="6" y="5" width="2" height="2" fill="#86bd70"/>
+      <rect x="4" y="1" width="1" height="1" fill="#e0913f"/><rect x="9" y="4" width="1" height="2" fill="#e0913f"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="scene">
+  <div class="beam"></div>
+  <div class="dust" style="top:120px; right:150px;"></div>
+  <div class="dust" style="top:180px; right:200px; animation-delay:1.5s;"></div>
+  <div class="dust" style="top:240px; right:120px; animation-delay:3s;"></div>
+  <div class="dust" style="top:150px; right:250px; animation-delay:2.2s;"></div>
+
+  <div class="window"><div class="sun"></div></div>
+  <div class="sill"></div>
+
+  <div class="hud">
+    <div class="hud__string"></div>
+    <div class="hud__tag"><div class="hud__label">STASH TOTAL</div><div class="hud__total" id="hud-total">…</div></div>
+  </div>
+
+  <div class="stack" id="shelves"></div>
+
+  <div class="cat">
+    <div class="tail"></div>
+    <div class="body"></div>
+    <div class="head">
+      <div class="ear l"></div><div class="ear r"></div>
+      <div class="eye l"></div><div class="eye r"></div>
+      <div class="pupil l"></div><div class="pupil r"></div>
+      <div class="nose"></div>
+    </div>
+  </div>
+  <div class="floor"></div>
+
+  <div class="add"><button class="add__btn" id="add-btn">+ NOUVEAU BOCAL</button></div>
+</div>
+
+<dialog id="detail-dialog"></dialog>
+<dialog id="form-dialog"></dialog>
+
+<script src="/api.js"></script>
+<script src="/jar-svg.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
