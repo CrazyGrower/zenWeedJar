@@ -23,7 +23,21 @@ docker compose up --build
 ```
 
 The SQLite database persists in `./data/stash.db` (mounted volume). On first boot
-the shelf is seeded with 4 jars totaling 237g.
+the shelf is seeded with 4 jars totaling 237g; on later boots the seed is skipped,
+so your data survives restarts.
+
+### Permissions du volume
+
+The container runs as the unprivileged `node` user (uid/gid 1000), so the mounted
+`./data` directory must be writable by uid 1000 on the host — the usual case for a
+single-user machine. If the container exits with `SQLITE_CANTOPEN`, fix it with:
+
+```bash
+sudo chown -R 1000:1000 ./data
+```
+
+A `HEALTHCHECK` polls `/api/health`, so `docker ps` reports the container's real
+state rather than just "running".
 
 ## API
 

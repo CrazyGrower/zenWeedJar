@@ -1,0 +1,13 @@
+The font files in this directory are redistributed under the
+SIL Open Font License, Version 1.1.
+
+- Press Start 2P — Copyright (c) CodeMan38
+  https://fonts.google.com/specimen/Press+Start+2P
+- Silkscreen — Copyright (c) Jason Kottke
+  https://fonts.google.com/specimen/Silkscreen
+
+Full license text: https://openfontlicense.org/open-font-license-official-text/
+
+Under the OFL these fonts may be used, studied, modified and redistributed
+freely, including bundled with software, provided they are not sold by
+themselves and any derivative fonts are released under the same license.

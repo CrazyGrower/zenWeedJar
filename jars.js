@@ -3,6 +3,19 @@ export class ValidationError extends Error {}
 const STRING_FIELDS = ['harvest_date', 'notes', 'color_tag'];
 const NUMBER_FIELDS = ['thc_percent', 'indica_pct'];
 
+// Clients send JSON, so a field can arrive as any JSON type. Only numbers and
+// numeric strings (what the HTML form submits) are meaningful here — without
+// this guard Number(true) is 1 and Number([]) is 0, so booleans and arrays
+// would silently become valid weights.
+function toNumber(value, message) {
+  if (typeof value !== 'number' && typeof value !== 'string') {
+    throw new ValidationError(message);
+  }
+  const n = Number(value);
+  if (!Number.isFinite(n)) throw new ValidationError(message);
+  return n;
+}
+
 function validate(data, { partial = false } = {}) {
   const out = {};
 
@@ -14,25 +27,25 @@ function validate(data, { partial = false } = {}) {
   }
 
   if (!partial || 'weight_g' in data) {
-    if (data.weight_g == null || data.weight_g === '') {
-      throw new ValidationError('weight_g must be a number >= 0');
-    }
-    const w = Number(data.weight_g);
-    if (!Number.isFinite(w) || w < 0) {
-      throw new ValidationError('weight_g must be a number >= 0');
-    }
+    const message = 'weight_g must be a number >= 0';
+    if (data.weight_g == null || data.weight_g === '') throw new ValidationError(message);
+    const w = toNumber(data.weight_g, message);
+    if (w < 0) throw new ValidationError(message);
     out.weight_g = w;
   }
 
   for (const f of STRING_FIELDS) {
-    if (f in data) out[f] = data[f] == null ? null : String(data[f]);
+    if (f in data) {
+      if (data[f] == null) { out[f] = null; continue; }
+      // String({}) yields "[object Object]" — store only real text.
+      if (typeof data[f] !== 'string') throw new ValidationError(`${f} must be a string`);
+      out[f] = data[f];
+    }
   }
   for (const f of NUMBER_FIELDS) {
     if (f in data) {
       if (data[f] == null || data[f] === '') { out[f] = null; continue; }
-      const n = Number(data[f]);
-      if (!Number.isFinite(n)) throw new ValidationError(`${f} must be a number`);
-      out[f] = n;
+      out[f] = toNumber(data[f], `${f} must be a number`);
     }
   }
   return out;

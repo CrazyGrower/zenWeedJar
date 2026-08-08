@@ -125,7 +125,7 @@ function openDetail(jar) {
 
 let jars = [];
 
-function maxWeight() { return jars.reduce((m, j) => Math.max(m, j.weight_g), 0); }
+function maxWeight(list) { return list.reduce((m, j) => Math.max(m, j.weight_g), 0); }
 
 function ghostSlot() {
   return `<div class="slot"><svg class="jar ghost" viewBox="0 0 32 46" shape-rendering="crispEdges">
@@ -148,7 +148,7 @@ function escapeHtml(s) {
 function renderShelves(list) {
   const PER_ROW = 6;
   const rows = Math.max(2, Math.ceil(list.length / PER_ROW));
-  const max = maxWeight();
+  const max = maxWeight(list);
   const cells = list.map((j) => filledSlot(j, max));
   while (cells.length < rows * PER_ROW) cells.push(ghostSlot());
 
@@ -168,8 +168,8 @@ function renderShelves(list) {
   });
 }
 
-function renderHud() {
-  const total = Math.round(jars.reduce((s, j) => s + j.weight_g, 0));
+function renderHud(list) {
+  const total = Math.round(list.reduce((s, j) => s + j.weight_g, 0));
   document.getElementById('hud-total').textContent = `${total}g`;
 }
 
@@ -191,7 +191,7 @@ function setOfflineNotice(show) {
 async function loadAndRender() {
   try {
     jars = await Api.list();
-    renderHud();
+    renderHud(jars);
     renderShelves(jars);
     setOfflineNotice(false);
     return jars;

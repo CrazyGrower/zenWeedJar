@@ -106,3 +106,35 @@ test('deleteJar removes the row', () => {
   assert.equal(deleteJar(db, first.id), false);
   assert.equal(listJars(db).length, 3);
 });
+
+test('createJar rejects non-numeric types for weight_g', () => {
+  const db = freshDb();
+  // Number(true) is 1 and Number([]) is 0, so these coerce to valid weights
+  // without a typeof guard.
+  for (const weight_g of [true, false, [], [5], {}]) {
+    assert.throws(() => createJar(db, { name: 'X', weight_g }), ValidationError);
+  }
+  assert.equal(listJars(db).length, 4);
+});
+
+test('createJar accepts numeric strings for weight_g (the form submits strings)', () => {
+  const db = freshDb();
+  assert.equal(createJar(db, { name: 'X', weight_g: '12.5' }).weight_g, 12.5);
+});
+
+test('createJar rejects non-string types for optional string fields', () => {
+  const db = freshDb();
+  for (const harvest_date of [{}, [], 42, true]) {
+    assert.throws(() => createJar(db, { name: 'X', weight_g: 1, harvest_date }), ValidationError);
+  }
+  // null stays a legitimate "clear this field" value
+  assert.equal(createJar(db, { name: 'X', weight_g: 1, harvest_date: null }).harvest_date, null);
+});
+
+test('createJar rejects non-numeric types for thc_percent', () => {
+  const db = freshDb();
+  assert.throws(() => createJar(db, { name: 'X', weight_g: 1, thc_percent: [] }), ValidationError);
+  assert.throws(() => createJar(db, { name: 'X', weight_g: 1, indica_pct: true }), ValidationError);
+  // '' and null still mean "no value"
+  assert.equal(createJar(db, { name: 'X', weight_g: 1, thc_percent: '' }).thc_percent, null);
+});
