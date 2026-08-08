@@ -51,14 +51,24 @@ async function adjustWeight(jar) {
   const delta = Number(input);
   if (!Number.isFinite(delta)) return alert('Valeur invalide');
   const next = Math.max(0, jar.weight_g + delta);
-  await Api.update(jar.id, { weight_g: next });
-  await loadAndRender();
+  try {
+    await Api.update(jar.id, { weight_g: next });
+    await loadAndRender();
+  } catch (err) {
+    alert(err.message);
+    await loadAndRender();
+  }
 }
 
 async function removeJar(jar) {
   if (!confirm(`Supprimer le bocal "${jar.name}" (${jar.weight_g}g) ?`)) return;
-  await Api.remove(jar.id);
-  await loadAndRender();
+  try {
+    await Api.remove(jar.id);
+    await loadAndRender();
+  } catch (err) {
+    alert(err.message);
+    await loadAndRender();
+  }
 }
 
 function clampPct(n) {
