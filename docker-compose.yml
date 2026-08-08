@@ -1,0 +1,11 @@
+services:
+  pixelstash:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PORT=3000
+      - DB_PATH=/app/data/stash.db
+    restart: unless-stopped
