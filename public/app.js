@@ -248,7 +248,16 @@ async function loadAndRender() {
   }
 }
 
+// On a screen narrower than the room, open on the middle of it rather than the
+// left edge — that's where the add button lives. No-op once the whole scene
+// fits, and it only fires on load, so it never fights a swipe in progress.
+function centreStage() {
+  const stage = document.getElementById('stage');
+  if (stage) stage.scrollLeft = (stage.scrollWidth - stage.clientWidth) / 2;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   loadAndRender();
+  centreStage();
   document.getElementById('add-btn').addEventListener('click', () => openForm());
 });
