@@ -38,3 +38,33 @@ test('does not reseed when jars already exist', () => {
     fs.rmSync(`${file}-shm`, { force: true });
   }
 });
+
+test('creates the jar_events table on an empty db', () => {
+  const db = openDb(':memory:');
+  const cols = db.prepare('PRAGMA table_info(jar_events)').all().map((c) => c.name);
+  assert.deepEqual(cols, ['id', 'jar_id', 'jar_name', 'kind', 'delta_g', 'total_after_g', 'created_at']);
+});
+
+test('seeding jars does not fabricate events', () => {
+  // The seeded jars predate the journal; inventing movements for them would
+  // put made-up dates in the history.
+  const db = openDb(':memory:');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM jar_events').get().n, 0);
+});
+
+test('adds jar_events to a database that predates it', () => {
+  const file = path.join(os.tmpdir(), `stash-ev-${process.pid}-${Math.floor(process.hrtime()[1])}.db`);
+  try {
+    const db1 = openDb(file);
+    db1.exec('DROP TABLE jar_events');
+    db1.close();
+    const db2 = openDb(file);
+    assert.equal(db2.prepare('SELECT COUNT(*) AS n FROM jar_events').get().n, 0);
+    assert.equal(db2.prepare('SELECT COUNT(*) AS n FROM jars').get().n, 4);
+    db2.close();
+  } finally {
+    fs.rmSync(file, { force: true });
+    fs.rmSync(`${file}-wal`, { force: true });
+    fs.rmSync(`${file}-shm`, { force: true });
+  }
+});
