@@ -49,7 +49,11 @@
 
   <div class="hud">
     <div class="hud__string"></div>
-    <div class="hud__tag"><div class="hud__label">STASH TOTAL</div><div class="hud__total" id="hud-total">…</div></div>
+    <button class="hud__tag" id="hud-tag" title="Voir le journal">
+      <span class="hud__label">STASH TOTAL</span>
+      <span class="hud__total" id="hud-total">…</span>
+    </button>
+    <div class="hud__log" id="hud-log"></div>
   </div>
 
   <div class="stack" id="shelves"></div>
@@ -72,6 +76,7 @@
 
 <dialog id="detail-dialog"></dialog>
 <dialog id="form-dialog"></dialog>
+<dialog id="history-dialog"></dialog>
 
 <script src="/api.js"></script>
 <script src="/jar-svg.js"></script>

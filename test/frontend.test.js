@@ -24,7 +24,7 @@ function loadApp() {
   const ctx = vm.createContext({
     window: {},
     document: { addEventListener() {}, getElementById: () => null, querySelectorAll: () => [] },
-    Math, console, Number, String, Array, Object, JSON,
+    Math, console, Number, String, Array, Object, JSON, Date,
   });
   vm.runInContext(read('jar-svg.js'), ctx);
   ctx.JarSvg = ctx.window.JarSvg;
@@ -271,4 +271,214 @@ test('a full shelf spills onto the next instead of dropping jars', () => {
 test('an empty shelf renders no jars and does not throw', () => {
   const { placeJars } = loadApp();
   assert.deepEqual(placeJars([], 2, 6).filter(Boolean), []);
+});
+
+// --- app.js: the movement journal --------------------------------------------
+
+test('formatDelta signs the movement and keeps grams readable', () => {
+  const { formatDelta } = loadApp();
+  assert.equal(formatDelta(77), '+77g');
+  assert.equal(formatDelta(-2), '-2g');
+  assert.equal(formatDelta(-2.26), '-2.3g', 'one decimal is enough on a pixel label');
+  assert.equal(formatDelta(0.5), '+0.5g');
+  assert.equal(formatDelta('12'), '+12g', 'SQLite REALs can arrive as strings through JSON');
+  assert.equal(formatDelta(null), '0g');
+});
+
+test('formatStamp reads SQLite timestamps as UTC, not as local time', () => {
+  // CURRENT_TIMESTAMP is UTC and carries no zone suffix. Handing that string
+  // straight to new Date() makes the browser read it as local time, which
+  // shifts every entry in the journal by the local offset.
+  const { formatStamp } = loadApp();
+  const expected = new Date(Date.UTC(2026, 7, 16, 21, 34, 0));
+  const p = (n) => String(n).padStart(2, '0');
+  const want = `${p(expected.getDate())}/${p(expected.getMonth() + 1)} ${p(expected.getHours())}:${p(expected.getMinutes())}`;
+  assert.equal(formatStamp('2026-08-16 21:34:00'), want);
+});
+
+test('formatStamp yields an empty string rather than "Invalid Date"', () => {
+  const { formatStamp } = loadApp();
+  assert.equal(formatStamp('not a date'), '');
+  assert.equal(formatStamp(null), '');
+});
+
+test('eventLine reads as a full journal row', () => {
+  const { eventLine, formatStamp } = loadApp();
+  const line = eventLine({
+    created_at: '2026-08-16 21:34:00', delta_g: 77, jar_name: 'MWHS', total_after_g: 237,
+  });
+  assert.equal(line, `${formatStamp('2026-08-16 21:34:00')} · +77g · MWHS · → 237g`);
+});
+
+test('eventLine rounds the running total to whole grams', () => {
+  const { eventLine } = loadApp();
+  assert.match(eventLine({
+    created_at: '2026-08-16 21:34:00', delta_g: -2.5, jar_name: 'Mango', total_after_g: 234.5,
+  }), /→ 235g$/);
+});
+
+test('the room reserves a left column for the journal, and gives it back on mobile', () => {
+  // The room is a fixed-size composition, so the garland cannot simply flow
+  // beside it: the wall has to grow by exactly the width of the reserved
+  // column. And the mobile view must land back on today's numbers to the
+  // pixel — that parity is the whole reason the query exists.
+  const css = read('style.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  const scene = css.match(/(^|\})\s*\.scene\s*\{([^}]*)\}/);
+  const stack = css.match(/(^|\})\s*\.stack\s*\{([^}]*)\}/);
+  assert.ok(scene && stack);
+  assert.match(scene[2], /width\s*:\s*1000px/);
+  assert.match(scene[2], /min-width\s*:\s*1000px/);
+  assert.match(stack[2], /padding\s*:\s*182px\s+26px\s+0\s+206px/);
+
+  const query = css.match(/@media\s*\(max-width:\s*900px\)\s*\{([\s\S]*?\n\s*\})\s*\n/);
+  assert.ok(query, 'a 900px query should restore the mobile layout');
+  assert.match(query[1], /\.scene\s*\{[^}]*width\s*:\s*820px/);
+  assert.match(query[1], /\.scene\s*\{[^}]*min-width\s*:\s*820px/);
+  assert.match(query[1], /\.stack\s*\{[^}]*padding-left\s*:\s*26px/);
+  assert.match(query[1], /\.hud__log\s*\{[^}]*display\s*:\s*none/);
+  assert.match(query[1], /\.hud\s*\{[^}]*width\s*:\s*auto/);
+});
+
+// renderLog writes into #hud-log; this stub is the smallest thing that lets
+// the pure markup be inspected.
+function logBox(ctx) {
+  const box = { innerHTML: '' };
+  ctx.document.getElementById = (id) => (id === 'hud-log' ? box : null);
+  return box;
+}
+
+test('renderLog hangs one tag per movement, in the order given', () => {
+  const ctx = loadApp();
+  const box = logBox(ctx);
+  ctx.renderLog([
+    { id: 3, delta_g: 77, jar_name: 'MWHS' },
+    { id: 2, delta_g: -2, jar_name: 'Mango' },
+  ]);
+  const tags = box.innerHTML.match(/class="ev"/g) || [];
+  assert.equal(tags.length, 2);
+  assert.ok(box.innerHTML.indexOf('MWHS') < box.innerHTML.indexOf('Mango'), 'order must be preserved');
+  assert.ok(box.innerHTML.includes('+77g'));
+  assert.ok(box.innerHTML.includes('-2g'));
+});
+
+test('renderLog never hangs more than ten tags', () => {
+  const ctx = loadApp();
+  const box = logBox(ctx);
+  const many = Array.from({ length: 25 }, (_, i) => ({ id: i, delta_g: 1, jar_name: `J${i}` }));
+  ctx.renderLog(many);
+  assert.equal((box.innerHTML.match(/class="ev"/g) || []).length, 10);
+});
+
+test('renderLog draws nothing at all when there is no history', () => {
+  const ctx = loadApp();
+  const box = logBox(ctx);
+  box.innerHTML = '<div class="ev">stale</div>';
+  ctx.renderLog([]);
+  assert.equal(box.innerHTML, '', 'an empty journal must leave no empty frame behind');
+});
+
+test('a tag marks additions and removals differently', () => {
+  const ctx = loadApp();
+  const box = logBox(ctx);
+  ctx.renderLog([{ id: 1, delta_g: 5, jar_name: 'Up' }, { id: 2, delta_g: -5, jar_name: 'Down' }]);
+  assert.match(box.innerHTML, /class="d up"/);
+  assert.match(box.innerHTML, /class="d down"/);
+});
+
+test('a jar name containing markup is escaped on its hanging tag', () => {
+  const ctx = loadApp();
+  const box = logBox(ctx);
+  ctx.renderLog([{ id: 1, delta_g: 5, jar_name: '<img src=x onerror=alert(1)>' }]);
+  assert.ok(!box.innerHTML.includes('<img'), 'name must not become an element');
+  assert.ok(box.innerHTML.includes('&lt;img'), 'it should appear as escaped text instead');
+});
+
+// --- app.js: the full history modal ------------------------------------------
+
+// The history dialog is filled asynchronously, so the stub records what was
+// written and whether it was opened.
+function historyDialog(ctx) {
+  const dlg = {
+    innerHTML: '', opened: false,
+    querySelector: () => ({ set onclick(_) {} }),
+    showModal() { this.opened = true; },
+    close() {},
+  };
+  ctx.document.getElementById = (id) => (id === 'history-dialog' ? dlg : null);
+  return dlg;
+}
+
+test('the history dialog lists every movement, newest first', async () => {
+  const ctx = loadApp();
+  const dlg = historyDialog(ctx);
+  ctx.Api = { events: async () => [
+    { id: 2, created_at: '2026-08-16 21:34:00', delta_g: -2, jar_name: 'Mango', total_after_g: 235 },
+    { id: 1, created_at: '2026-08-16 09:00:00', delta_g: 77, jar_name: 'MWHS', total_after_g: 237 },
+  ] };
+
+  await ctx.openHistory();
+
+  assert.ok(dlg.opened, 'the dialog should be shown');
+  assert.equal((dlg.innerHTML.match(/class="log__line"/g) || []).length, 2);
+  assert.ok(dlg.innerHTML.indexOf('Mango') < dlg.innerHTML.indexOf('MWHS'), 'newest first');
+  assert.ok(dlg.innerHTML.includes('→ 235g'), 'the running total should be on the line');
+});
+
+test('the history dialog says so when the journal is empty', async () => {
+  const ctx = loadApp();
+  const dlg = historyDialog(ctx);
+  ctx.Api = { events: async () => [] };
+  await ctx.openHistory();
+  assert.ok(dlg.opened);
+  assert.ok(dlg.innerHTML.includes('Aucun mouvement'));
+  assert.ok(!dlg.innerHTML.includes('log__line'));
+});
+
+test('a jar name containing markup is escaped in the history dialog', async () => {
+  const ctx = loadApp();
+  const dlg = historyDialog(ctx);
+  ctx.Api = { events: async () => [{
+    id: 1, created_at: '2026-08-16 21:34:00', delta_g: 5,
+    jar_name: '<img src=x onerror=alert(1)>', total_after_g: 10,
+  }] };
+  await ctx.openHistory();
+  assert.ok(!dlg.innerHTML.includes('<img'), 'name must not become an element');
+  assert.ok(dlg.innerHTML.includes('&lt;img'), 'it should appear as escaped text instead');
+});
+
+test('the total sign is a real button, so it is reachable by keyboard', () => {
+  // The sign is the only way into the history on mobile, where the garland is
+  // hidden — a clickable <div> would leave that path keyboard-inaccessible.
+  const html = read('index.html');
+  assert.match(html, /<button[^>]*class="hud__tag"[^>]*id="hud-tag"|<button[^>]*id="hud-tag"[^>]*class="hud__tag"/);
+  assert.match(html, /<dialog id="history-dialog">/);
+});
+
+test('the offline notice is not appended inside the sign button', () => {
+  // A <div> inside a <button> is invalid markup; the notice goes on .hud.
+  const src = read('app.js');
+  const fn = src.slice(src.indexOf('function setOfflineNotice'));
+  assert.doesNotMatch(fn.slice(0, fn.indexOf('\n}')), /querySelector\('\.hud__tag'\)/);
+});
+
+test('a failed journal load does not stop the jars from rendering', async () => {
+  const ctx = loadApp();
+  const shelves = { innerHTML: '', querySelectorAll: () => [] };
+  const hudTotal = { textContent: '' };
+  const log = { innerHTML: '' };
+  ctx.document.getElementById = (id) => {
+    if (id === 'shelves') return shelves;
+    if (id === 'hud-total') return hudTotal;
+    if (id === 'hud-log') return log;
+    return null;
+  };
+  ctx.Api = {
+    list: async () => [{ id: 1, name: 'MWHS', weight_g: 10, color_tag: '#79a67e' }],
+    events: async () => { throw new Error('offline'); },
+  };
+
+  await assert.doesNotReject(ctx.loadAndRender());
+
+  assert.ok(shelves.innerHTML.length > 0, 'the shelves should still render');
+  assert.equal(log.innerHTML, '', 'the log should be left empty rather than throwing');
 });

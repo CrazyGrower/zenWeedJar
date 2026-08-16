@@ -129,10 +129,14 @@ verticalement et gardent leurs 6 emplacements à leur taille actuelle.
 - `.hud` : largeur fixée à 150px, pour que la pancarte et les étiquettes
   s'alignent sur la même colonne
 
-Fenêtre, rebord, faisceau, chat, sol et bouton d'ajout sont ancrés à droite ou
-en bas : les 180px ajoutés sont du mur en plus, ils ne déplacent rien. Les deux
-valeurs se compensent exactement, donc les six emplacements d'étagère gardent
-la largeur qu'ils ont aujourd'hui.
+Fenêtre, rebord, faisceau, chat et sol sont ancrés à droite ou en bas : les
+180px ajoutés sont du mur en plus, ils ne déplacent rien. Le bouton d'ajout,
+lui, est centré sur la pièce et non ancré à un bord : son centre suit donc
+celui de la pièce, pas celui des étagères, et il lui faut un décalage explicite
+de 90px pour rester sous les étagères — annulé en dessous de 900px, où la
+colonne du journal disparaît. Les deux valeurs de `.scene`/`.stack` se
+compensent exactement, donc les six emplacements d'étagère gardent la largeur
+qu'ils ont aujourd'hui.
 
 Entre 900px et ~1024px de fenêtre, la pièce déborde et `.stage` défile
 horizontalement — comportement déjà en place aujourd'hui pour les écrans

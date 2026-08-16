@@ -21,6 +21,19 @@ export function openDb(dbPath = process.env.DB_PATH || './data/stash.db') {
       notes        TEXT,
       color_tag    TEXT,
       created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- No FK to jars: an entry must outlive the jar it describes, so the
+    -- journal can still show "-77g MWHS" after MWHS is deleted. jar_name is a
+    -- snapshot for the same reason.
+    CREATE TABLE IF NOT EXISTS jar_events (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      jar_id        INTEGER,
+      jar_name      TEXT NOT NULL,
+      kind          TEXT NOT NULL,
+      delta_g       REAL NOT NULL,
+      total_after_g REAL NOT NULL,
+      created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 

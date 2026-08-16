@@ -123,6 +123,76 @@ function openDetail(jar) {
   dlg.showModal();
 }
 
+// --- the movement journal ----------------------------------------------------
+
+const LOG_TAGS = 10;
+
+// One decimal: the shelf deals in tenths of a gram and a pixel label has no
+// room for more. An ASCII hyphen, not U+2212 — the pixel fonts have no glyph
+// for a real minus sign and would render tofu.
+function formatDelta(delta_g) {
+  const n = Number(delta_g);
+  if (!Number.isFinite(n)) return '0g';
+  const g = Math.round(n * 10) / 10;
+  if (g === 0) return '0g';
+  return `${g > 0 ? '+' : '-'}${Math.abs(g)}g`;
+}
+
+// SQLite's CURRENT_TIMESTAMP is UTC and has no zone suffix; new Date() would
+// read "2026-08-16 21:34:00" as local time and shift the whole journal by the
+// local offset. Appending Z makes the parse explicit.
+function formatStamp(created_at) {
+  const d = new Date(`${String(created_at).replace(' ', 'T')}Z`);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function eventLine(ev) {
+  const total = Math.round(Number(ev.total_after_g) || 0);
+  return `${formatStamp(ev.created_at)} · ${formatDelta(ev.delta_g)} · ${ev.jar_name} · → ${total}g`;
+}
+
+function renderLog(events) {
+  const box = document.getElementById('hud-log');
+  if (!box) return;
+  // The tags carry their own borders and the container has no background, so
+  // an empty journal leaves no empty frame hanging on the wall.
+  box.innerHTML = (events || []).slice(0, LOG_TAGS).map((ev) => {
+    const dir = Number(ev.delta_g) < 0 ? 'down' : 'up';
+    return `<div class="ev"><span class="d ${dir}">${formatDelta(ev.delta_g)}</span> ` +
+      `<span class="n">${escapeHtml(ev.jar_name)}</span></div>`;
+  }).join('');
+}
+
+async function openHistory() {
+  const dlg = document.getElementById('history-dialog');
+  let events;
+  try {
+    events = await Api.events();
+  } catch (err) {
+    alert(err.message);
+    return;
+  }
+  const body = events.length === 0
+    ? '<div class="log__empty">Aucun mouvement enregistré</div>'
+    : `<div class="log">${events
+        .map((ev) => `<div class="log__line">${escapeHtml(eventLine(ev))}</div>`)
+        .join('')}</div>`;
+
+  dlg.innerHTML = `
+    <div class="modal">
+      <h2>JOURNAL</h2>
+      <div class="sub">MOUVEMENTS DU STASH</div>
+      ${body}
+      <div class="actions">
+        <button class="btn btn--ghost" data-act="close">FERMER</button>
+      </div>
+    </div>`;
+  dlg.querySelector('[data-act="close"]').onclick = () => dlg.close();
+  dlg.showModal();
+}
+
 let jars = [];
 
 function ghostSlot() {
@@ -228,9 +298,9 @@ function setOfflineNotice(show) {
   if (existing) return;
   const notice = document.createElement('div');
   notice.id = 'offline-notice';
-  notice.className = 'hud__label';
+  notice.className = 'hud__offline';
   notice.textContent = 'Serveur injoignable. Nouvel essai au prochain chargement.';
-  document.querySelector('.hud__tag').appendChild(notice);
+  document.querySelector('.hud').appendChild(notice);
 }
 
 async function loadAndRender() {
@@ -239,13 +309,21 @@ async function loadAndRender() {
     renderHud(jars);
     renderShelves(jars);
     setOfflineNotice(false);
-    return jars;
   } catch (err) {
     jars = [];
     renderShelves([]);
+    renderLog([]);
     setOfflineNotice(true);
     return jars;
   }
+  // Its own try: the journal is a garnish, and losing it must not blank the
+  // shelves that just loaded fine.
+  try {
+    renderLog(await Api.events(LOG_TAGS));
+  } catch (err) {
+    renderLog([]);
+  }
+  return jars;
 }
 
 // On a screen narrower than the room, open on the middle of it rather than the
@@ -260,4 +338,5 @@ document.addEventListener('DOMContentLoaded', () => {
   loadAndRender();
   centreStage();
   document.getElementById('add-btn').addEventListener('click', () => openForm());
+  document.getElementById('hud-tag').addEventListener('click', openHistory);
 });
