@@ -165,6 +165,34 @@ function renderLog(events) {
   }).join('');
 }
 
+async function openHistory() {
+  const dlg = document.getElementById('history-dialog');
+  let events;
+  try {
+    events = await Api.events();
+  } catch (err) {
+    alert(err.message);
+    return;
+  }
+  const body = events.length === 0
+    ? '<div class="log__empty">Aucun mouvement enregistré</div>'
+    : `<div class="log">${events
+        .map((ev) => `<div class="log__line">${escapeHtml(eventLine(ev))}</div>`)
+        .join('')}</div>`;
+
+  dlg.innerHTML = `
+    <div class="modal">
+      <h2>JOURNAL</h2>
+      <div class="sub">MOUVEMENTS DU STASH</div>
+      ${body}
+      <div class="actions">
+        <button class="btn btn--ghost" data-act="close">FERMER</button>
+      </div>
+    </div>`;
+  dlg.querySelector('[data-act="close"]').onclick = () => dlg.close();
+  dlg.showModal();
+}
+
 let jars = [];
 
 function ghostSlot() {
@@ -272,7 +300,7 @@ function setOfflineNotice(show) {
   notice.id = 'offline-notice';
   notice.className = 'hud__label';
   notice.textContent = 'Serveur injoignable. Nouvel essai au prochain chargement.';
-  document.querySelector('.hud__tag').appendChild(notice);
+  document.querySelector('.hud').appendChild(notice);
 }
 
 async function loadAndRender() {
@@ -310,4 +338,5 @@ document.addEventListener('DOMContentLoaded', () => {
   loadAndRender();
   centreStage();
   document.getElementById('add-btn').addEventListener('click', () => openForm());
+  document.getElementById('hud-tag').addEventListener('click', openHistory);
 });

@@ -392,3 +392,71 @@ test('a jar name containing markup is escaped on its hanging tag', () => {
   assert.ok(!box.innerHTML.includes('<img'), 'name must not become an element');
   assert.ok(box.innerHTML.includes('&lt;img'), 'it should appear as escaped text instead');
 });
+
+// --- app.js: the full history modal ------------------------------------------
+
+// The history dialog is filled asynchronously, so the stub records what was
+// written and whether it was opened.
+function historyDialog(ctx) {
+  const dlg = {
+    innerHTML: '', opened: false,
+    querySelector: () => ({ set onclick(_) {} }),
+    showModal() { this.opened = true; },
+    close() {},
+  };
+  ctx.document.getElementById = (id) => (id === 'history-dialog' ? dlg : null);
+  return dlg;
+}
+
+test('the history dialog lists every movement, newest first', async () => {
+  const ctx = loadApp();
+  const dlg = historyDialog(ctx);
+  ctx.Api = { events: async () => [
+    { id: 2, created_at: '2026-08-16 21:34:00', delta_g: -2, jar_name: 'Mango', total_after_g: 235 },
+    { id: 1, created_at: '2026-08-16 09:00:00', delta_g: 77, jar_name: 'MWHS', total_after_g: 237 },
+  ] };
+
+  await ctx.openHistory();
+
+  assert.ok(dlg.opened, 'the dialog should be shown');
+  assert.equal((dlg.innerHTML.match(/class="log__line"/g) || []).length, 2);
+  assert.ok(dlg.innerHTML.indexOf('Mango') < dlg.innerHTML.indexOf('MWHS'), 'newest first');
+  assert.ok(dlg.innerHTML.includes('→ 235g'), 'the running total should be on the line');
+});
+
+test('the history dialog says so when the journal is empty', async () => {
+  const ctx = loadApp();
+  const dlg = historyDialog(ctx);
+  ctx.Api = { events: async () => [] };
+  await ctx.openHistory();
+  assert.ok(dlg.opened);
+  assert.ok(dlg.innerHTML.includes('Aucun mouvement'));
+  assert.ok(!dlg.innerHTML.includes('log__line'));
+});
+
+test('a jar name containing markup is escaped in the history dialog', async () => {
+  const ctx = loadApp();
+  const dlg = historyDialog(ctx);
+  ctx.Api = { events: async () => [{
+    id: 1, created_at: '2026-08-16 21:34:00', delta_g: 5,
+    jar_name: '<img src=x onerror=alert(1)>', total_after_g: 10,
+  }] };
+  await ctx.openHistory();
+  assert.ok(!dlg.innerHTML.includes('<img'), 'name must not become an element');
+  assert.ok(dlg.innerHTML.includes('&lt;img'), 'it should appear as escaped text instead');
+});
+
+test('the total sign is a real button, so it is reachable by keyboard', () => {
+  // The sign is the only way into the history on mobile, where the garland is
+  // hidden — a clickable <div> would leave that path keyboard-inaccessible.
+  const html = read('index.html');
+  assert.match(html, /<button[^>]*class="hud__tag"[^>]*id="hud-tag"|<button[^>]*id="hud-tag"[^>]*class="hud__tag"/);
+  assert.match(html, /<dialog id="history-dialog">/);
+});
+
+test('the offline notice is not appended inside the sign button', () => {
+  // A <div> inside a <button> is invalid markup; the notice goes on .hud.
+  const src = read('app.js');
+  const fn = src.slice(src.indexOf('function setOfflineNotice'));
+  assert.doesNotMatch(fn.slice(0, fn.indexOf('\n}')), /querySelector\('\.hud__tag'\)/);
+});

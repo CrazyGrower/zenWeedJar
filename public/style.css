@@ -63,10 +63,13 @@
   /* HUD hanging tag */
   .hud{position:absolute; top:0; left:42px; z-index:5; text-align:center; width:150px;}
   .hud__string{width:3px; height:26px; margin:0 auto; background:#7a5f6e;}
-  .hud__tag{position:relative; background:var(--kraft); color:var(--kraft-ink);
-    border:3px solid var(--kraft-lo); padding:10px 18px 12px; box-shadow:0 5px 0 rgba(0,0,0,.28);}
+  .hud__tag{position:relative; display:block; width:100%; background:var(--kraft); color:var(--kraft-ink);
+    border:3px solid var(--kraft-lo); padding:10px 18px 12px; box-shadow:0 5px 0 rgba(0,0,0,.28);
+    font-family:inherit; text-align:center; cursor:pointer;}
+  .hud__tag:hover{background:#f4e7c6;}
   .hud__tag::before{content:""; position:absolute; top:6px; left:50%; transform:translateX(-50%);
     width:8px; height:8px; border-radius:50%; background:#8a7355;}
+  .hud__label, .hud__total{display:block;}
   .hud__label{font-size:8px; letter-spacing:2px; color:#8a7355; margin-top:6px;}
   .hud__total{font-family:'Press Start 2P'; font-size:18px; margin-top:7px; color:#4a3510; text-shadow:2px 2px 0 rgba(243,161,90,.5);}
   /* Mini kraft tags strung under the sign. Each carries its own border, and
@@ -170,6 +173,9 @@ dialog::backdrop{ background:rgba(20,14,26,.66); }
 .ratio>.i{ position:absolute; left:0; top:0; bottom:0; background:#b58fd6; }
 .ratio>.s{ position:absolute; right:0; top:0; bottom:0; background:#8fc0a0; }
 .modal .actions{ display:flex; flex-direction:column; gap:8px; margin-top:16px; }
+.modal .log{max-height:50vh; overflow-y:auto; border:3px solid #7a5f6e; background:rgba(20,14,26,.35); padding:8px;}
+.modal .log__line{font-size:10px; line-height:1.9; color:#efe6cf; white-space:nowrap;}
+.modal .log__empty{font-size:10px; color:#cdb9a6; padding:12px 0;}
 .btn{ font-family:'Silkscreen'; font-weight:700; font-size:10px; padding:10px; cursor:pointer; border:3px solid; letter-spacing:1px; }
 .btn--primary{ background:var(--peach); border-color:#b87a34; color:#4a3510; box-shadow:0 4px 0 #935e26; }
 .btn--edit{ background:#9ac48f; border-color:#5f8a63; color:#204028; box-shadow:0 4px 0 #5f8a63; }
