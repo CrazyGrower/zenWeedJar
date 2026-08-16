@@ -69,7 +69,17 @@
     width:8px; height:8px; border-radius:50%; background:#8a7355;}
   .hud__label{font-size:8px; letter-spacing:2px; color:#8a7355; margin-top:6px;}
   .hud__total{font-family:'Press Start 2P'; font-size:18px; margin-top:7px; color:#4a3510; text-shadow:2px 2px 0 rgba(243,161,90,.5);}
+  /* Mini kraft tags strung under the sign. Each carries its own border, and
+     the top one loses its top edge so the strip reads as one hanging chain. */
   .hud__log{margin:0 auto; width:100%;}
+  .hud__log .ev{background:var(--kraft); border:3px solid var(--kraft-lo); border-top:none;
+    padding:4px 6px 5px; font-size:8px; letter-spacing:1px; text-align:left;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    box-shadow:0 2px 0 rgba(0,0,0,.18);}
+  .hud__log .d{font-weight:700;}
+  .hud__log .d.up{color:#3d7a45;}
+  .hud__log .d.down{color:#a2453a;}
+  .hud__log .n{color:var(--kraft-ink);}
 
   /* Shelves */
   /* The 206px on the left is the journal's column: the hanging tags live

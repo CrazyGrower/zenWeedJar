@@ -153,6 +153,18 @@ function eventLine(ev) {
   return `${formatStamp(ev.created_at)} · ${formatDelta(ev.delta_g)} · ${ev.jar_name} · → ${total}g`;
 }
 
+function renderLog(events) {
+  const box = document.getElementById('hud-log');
+  if (!box) return;
+  // The tags carry their own borders and the container has no background, so
+  // an empty journal leaves no empty frame hanging on the wall.
+  box.innerHTML = (events || []).slice(0, LOG_TAGS).map((ev) => {
+    const dir = Number(ev.delta_g) < 0 ? 'down' : 'up';
+    return `<div class="ev"><span class="d ${dir}">${formatDelta(ev.delta_g)}</span> ` +
+      `<span class="n">${escapeHtml(ev.jar_name)}</span></div>`;
+  }).join('');
+}
+
 let jars = [];
 
 function ghostSlot() {
@@ -269,13 +281,21 @@ async function loadAndRender() {
     renderHud(jars);
     renderShelves(jars);
     setOfflineNotice(false);
-    return jars;
   } catch (err) {
     jars = [];
     renderShelves([]);
+    renderLog([]);
     setOfflineNotice(true);
     return jars;
   }
+  // Its own try: the journal is a garnish, and losing it must not blank the
+  // shelves that just loaded fine.
+  try {
+    renderLog(await Api.events(LOG_TAGS));
+  } catch (err) {
+    renderLog([]);
+  }
+  return jars;
 }
 
 // On a screen narrower than the room, open on the middle of it rather than the

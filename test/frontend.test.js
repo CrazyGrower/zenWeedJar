@@ -338,3 +338,57 @@ test('the room reserves a left column for the journal, and gives it back on mobi
   assert.match(query[1], /\.hud__log\s*\{[^}]*display\s*:\s*none/);
   assert.match(query[1], /\.hud\s*\{[^}]*width\s*:\s*auto/);
 });
+
+// renderLog writes into #hud-log; this stub is the smallest thing that lets
+// the pure markup be inspected.
+function logBox(ctx) {
+  const box = { innerHTML: '' };
+  ctx.document.getElementById = (id) => (id === 'hud-log' ? box : null);
+  return box;
+}
+
+test('renderLog hangs one tag per movement, most recent first', () => {
+  const ctx = loadApp();
+  const box = logBox(ctx);
+  ctx.renderLog([
+    { id: 3, delta_g: 77, jar_name: 'MWHS' },
+    { id: 2, delta_g: -2, jar_name: 'Mango' },
+  ]);
+  const tags = box.innerHTML.match(/class="ev"/g) || [];
+  assert.equal(tags.length, 2);
+  assert.ok(box.innerHTML.indexOf('MWHS') < box.innerHTML.indexOf('Mango'), 'order must be preserved');
+  assert.ok(box.innerHTML.includes('+77g'));
+  assert.ok(box.innerHTML.includes('-2g'));
+});
+
+test('renderLog never hangs more than ten tags', () => {
+  const ctx = loadApp();
+  const box = logBox(ctx);
+  const many = Array.from({ length: 25 }, (_, i) => ({ id: i, delta_g: 1, jar_name: `J${i}` }));
+  ctx.renderLog(many);
+  assert.equal((box.innerHTML.match(/class="ev"/g) || []).length, 10);
+});
+
+test('renderLog draws nothing at all when there is no history', () => {
+  const ctx = loadApp();
+  const box = logBox(ctx);
+  box.innerHTML = '<div class="ev">stale</div>';
+  ctx.renderLog([]);
+  assert.equal(box.innerHTML, '', 'an empty journal must leave no empty frame behind');
+});
+
+test('a tag marks additions and removals differently', () => {
+  const ctx = loadApp();
+  const box = logBox(ctx);
+  ctx.renderLog([{ id: 1, delta_g: 5, jar_name: 'Up' }, { id: 2, delta_g: -5, jar_name: 'Down' }]);
+  assert.match(box.innerHTML, /class="d up"/);
+  assert.match(box.innerHTML, /class="d down"/);
+});
+
+test('a jar name containing markup is escaped on its hanging tag', () => {
+  const ctx = loadApp();
+  const box = logBox(ctx);
+  ctx.renderLog([{ id: 1, delta_g: 5, jar_name: '<img src=x onerror=alert(1)>' }]);
+  assert.ok(!box.innerHTML.includes('<img'), 'name must not become an element');
+  assert.ok(box.innerHTML.includes('&lt;img'), 'it should appear as escaped text instead');
+});
