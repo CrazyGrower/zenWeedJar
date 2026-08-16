@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { listJars, createJar, updateJar, deleteJar, listEvents, ValidationError } from './jars.js';
+import { listJars, createJar, updateJar, deleteJar, listEvents, EVENT_CAP, ValidationError } from './jars.js';
 
 export function createApp(db) {
   const app = express();
@@ -36,16 +36,14 @@ export function createApp(db) {
     res.status(204).end();
   });
 
-  const EVENT_LIMIT_MAX = 500;
-
   app.get('/api/events', (req, res) => {
     const { limit } = req.query;
     if (limit === undefined) return res.json(listEvents(db));
     // Number('') is 0 and Number('1.5') is 1.5 — both are rejected here rather
     // than silently rounded or treated as "no limit".
     const n = Number(limit);
-    if (!Number.isInteger(n) || n <= 0 || n > EVENT_LIMIT_MAX) {
-      return res.status(400).json({ error: `limit must be an integer between 1 and ${EVENT_LIMIT_MAX}` });
+    if (!Number.isInteger(n) || n <= 0 || n > EVENT_CAP) {
+      return res.status(400).json({ error: `limit must be an integer between 1 and ${EVENT_CAP}` });
     }
     res.json(listEvents(db, { limit: n }));
   });

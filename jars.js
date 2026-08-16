@@ -59,7 +59,7 @@ export function getJar(db, id) {
   return db.prepare('SELECT * FROM jars WHERE id = ?').get(id);
 }
 
-const EVENT_CAP = 500;
+export const EVENT_CAP = 500;
 
 // COALESCE, not SUM alone: on an empty table SUM returns NULL, which would
 // write a null total into the journal instead of 0.
@@ -80,7 +80,8 @@ function recordEvent(db, { jar_id, jar_name, kind, delta_g }) {
 // created_at has one-second granularity, so two movements in the same second
 // tie; id breaks the tie and keeps the order stable.
 export function listEvents(db, { limit } = {}) {
-  const n = Math.min(Number(limit) > 0 ? Number(limit) : EVENT_CAP, EVENT_CAP);
+  const asked = Math.floor(Number(limit));
+  const n = Number.isFinite(asked) && asked > 0 ? Math.min(asked, EVENT_CAP) : EVENT_CAP;
   return db.prepare('SELECT * FROM jar_events ORDER BY created_at DESC, id DESC LIMIT ?').all(n);
 }
 

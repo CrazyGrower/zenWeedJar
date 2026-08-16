@@ -347,7 +347,7 @@ function logBox(ctx) {
   return box;
 }
 
-test('renderLog hangs one tag per movement, most recent first', () => {
+test('renderLog hangs one tag per movement, in the order given', () => {
   const ctx = loadApp();
   const box = logBox(ctx);
   ctx.renderLog([
@@ -459,4 +459,26 @@ test('the offline notice is not appended inside the sign button', () => {
   const src = read('app.js');
   const fn = src.slice(src.indexOf('function setOfflineNotice'));
   assert.doesNotMatch(fn.slice(0, fn.indexOf('\n}')), /querySelector\('\.hud__tag'\)/);
+});
+
+test('a failed journal load does not stop the jars from rendering', async () => {
+  const ctx = loadApp();
+  const shelves = { innerHTML: '', querySelectorAll: () => [] };
+  const hudTotal = { textContent: '' };
+  const log = { innerHTML: '' };
+  ctx.document.getElementById = (id) => {
+    if (id === 'shelves') return shelves;
+    if (id === 'hud-total') return hudTotal;
+    if (id === 'hud-log') return log;
+    return null;
+  };
+  ctx.Api = {
+    list: async () => [{ id: 1, name: 'MWHS', weight_g: 10, color_tag: '#79a67e' }],
+    events: async () => { throw new Error('offline'); },
+  };
+
+  await assert.doesNotReject(ctx.loadAndRender());
+
+  assert.ok(shelves.innerHTML.length > 0, 'the shelves should still render');
+  assert.equal(log.innerHTML, '', 'the log should be left empty rather than throwing');
 });

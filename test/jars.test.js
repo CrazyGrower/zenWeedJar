@@ -231,6 +231,17 @@ test('listEvents honours limit and caps at 500', () => {
   assert.equal(listEvents(db, { limit: 10000 }).length, 2, 'a huge limit must not throw');
 });
 
+test('listEvents tolerates a limit that is not a clean positive integer', () => {
+  const db = freshDb();
+  createJar(db, { name: 'First', weight_g: 1 });
+  createJar(db, { name: 'Second', weight_g: 2 });
+  // A fractional limit would otherwise reach SQLite's LIMIT ? and throw
+  // "datatype mismatch" — it must be floored instead.
+  assert.equal(listEvents(db, { limit: 1.5 }).length, 1);
+  // 0 (and negatives) mean "no limit", by contract, rather than "no rows".
+  assert.equal(listEvents(db, { limit: 0 }).length, 2);
+});
+
 test('deleting the last jar records a total of 0, not null', () => {
   const db = freshDb();
   for (const j of listJars(db)) deleteJar(db, j.id);

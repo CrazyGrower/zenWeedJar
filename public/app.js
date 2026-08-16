@@ -298,7 +298,7 @@ function setOfflineNotice(show) {
   if (existing) return;
   const notice = document.createElement('div');
   notice.id = 'offline-notice';
-  notice.className = 'hud__label';
+  notice.className = 'hud__offline';
   notice.textContent = 'Serveur injoignable. Nouvel essai au prochain chargement.';
   document.querySelector('.hud').appendChild(notice);
 }
