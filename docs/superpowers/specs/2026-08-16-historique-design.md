@@ -124,11 +124,19 @@ La guirlande occupe une colonne réservée **à gauche des étagères**, dans le
 prolongement de la ficelle de la pancarte. Les étagères ne bougent pas
 verticalement et gardent leurs 6 emplacements à leur taille actuelle.
 
-- `.scene` : largeur 820px → 980px
-- `.stack` : `padding-left` 26px → 186px
+- `.scene` : largeur 820px → 1000px
+- `.stack` : `padding-left` 26px → 206px
+- `.hud` : largeur fixée à 150px, pour que la pancarte et les étiquettes
+  s'alignent sur la même colonne
 
 Fenêtre, rebord, faisceau, chat, sol et bouton d'ajout sont ancrés à droite ou
-en bas : les 160px ajoutés sont du mur en plus, ils ne déplacent rien.
+en bas : les 180px ajoutés sont du mur en plus, ils ne déplacent rien. Les deux
+valeurs se compensent exactement, donc les six emplacements d'étagère gardent
+la largeur qu'ils ont aujourd'hui.
+
+Entre 900px et ~1024px de fenêtre, la pièce déborde et `.stage` défile
+horizontalement — comportement déjà en place aujourd'hui pour les écrans
+étroits.
 
 ### Guirlande (`.hud__log`)
 
