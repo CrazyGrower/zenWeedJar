@@ -123,6 +123,36 @@ function openDetail(jar) {
   dlg.showModal();
 }
 
+// --- the movement journal ----------------------------------------------------
+
+const LOG_TAGS = 10;
+
+// One decimal: the shelf deals in tenths of a gram and a pixel label has no
+// room for more. An ASCII hyphen, not U+2212 — the pixel fonts have no glyph
+// for a real minus sign and would render tofu.
+function formatDelta(delta_g) {
+  const n = Number(delta_g);
+  if (!Number.isFinite(n)) return '0g';
+  const g = Math.round(n * 10) / 10;
+  if (g === 0) return '0g';
+  return `${g > 0 ? '+' : '-'}${Math.abs(g)}g`;
+}
+
+// SQLite's CURRENT_TIMESTAMP is UTC and has no zone suffix; new Date() would
+// read "2026-08-16 21:34:00" as local time and shift the whole journal by the
+// local offset. Appending Z makes the parse explicit.
+function formatStamp(created_at) {
+  const d = new Date(`${String(created_at).replace(' ', 'T')}Z`);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function eventLine(ev) {
+  const total = Math.round(Number(ev.total_after_g) || 0);
+  return `${formatStamp(ev.created_at)} · ${formatDelta(ev.delta_g)} · ${ev.jar_name} · → ${total}g`;
+}
+
 let jars = [];
 
 function ghostSlot() {

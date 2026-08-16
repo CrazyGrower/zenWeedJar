@@ -24,7 +24,7 @@ function loadApp() {
   const ctx = vm.createContext({
     window: {},
     document: { addEventListener() {}, getElementById: () => null, querySelectorAll: () => [] },
-    Math, console, Number, String, Array, Object, JSON,
+    Math, console, Number, String, Array, Object, JSON, Date,
   });
   vm.runInContext(read('jar-svg.js'), ctx);
   ctx.JarSvg = ctx.window.JarSvg;
@@ -271,4 +271,48 @@ test('a full shelf spills onto the next instead of dropping jars', () => {
 test('an empty shelf renders no jars and does not throw', () => {
   const { placeJars } = loadApp();
   assert.deepEqual(placeJars([], 2, 6).filter(Boolean), []);
+});
+
+// --- app.js: the movement journal --------------------------------------------
+
+test('formatDelta signs the movement and keeps grams readable', () => {
+  const { formatDelta } = loadApp();
+  assert.equal(formatDelta(77), '+77g');
+  assert.equal(formatDelta(-2), '-2g');
+  assert.equal(formatDelta(-2.26), '-2.3g', 'one decimal is enough on a pixel label');
+  assert.equal(formatDelta(0.5), '+0.5g');
+  assert.equal(formatDelta('12'), '+12g', 'SQLite REALs can arrive as strings through JSON');
+  assert.equal(formatDelta(null), '0g');
+});
+
+test('formatStamp reads SQLite timestamps as UTC, not as local time', () => {
+  // CURRENT_TIMESTAMP is UTC and carries no zone suffix. Handing that string
+  // straight to new Date() makes the browser read it as local time, which
+  // shifts every entry in the journal by the local offset.
+  const { formatStamp } = loadApp();
+  const expected = new Date(Date.UTC(2026, 7, 16, 21, 34, 0));
+  const p = (n) => String(n).padStart(2, '0');
+  const want = `${p(expected.getDate())}/${p(expected.getMonth() + 1)} ${p(expected.getHours())}:${p(expected.getMinutes())}`;
+  assert.equal(formatStamp('2026-08-16 21:34:00'), want);
+});
+
+test('formatStamp yields an empty string rather than "Invalid Date"', () => {
+  const { formatStamp } = loadApp();
+  assert.equal(formatStamp('not a date'), '');
+  assert.equal(formatStamp(null), '');
+});
+
+test('eventLine reads as a full journal row', () => {
+  const { eventLine, formatStamp } = loadApp();
+  const line = eventLine({
+    created_at: '2026-08-16 21:34:00', delta_g: 77, jar_name: 'MWHS', total_after_g: 237,
+  });
+  assert.equal(line, `${formatStamp('2026-08-16 21:34:00')} · +77g · MWHS · → 237g`);
+});
+
+test('eventLine rounds the running total to whole grams', () => {
+  const { eventLine } = loadApp();
+  assert.match(eventLine({
+    created_at: '2026-08-16 21:34:00', delta_g: -2.5, jar_name: 'Mango', total_after_g: 234.5,
+  }), /→ 235g$/);
 });

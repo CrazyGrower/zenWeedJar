@@ -22,6 +22,12 @@ window.Api = {
     if (!r.ok) throw await apiError(r, 'list failed');
     return r.json();
   },
+  async events(limit) {
+    const qs = limit == null ? '' : `?limit=${encodeURIComponent(limit)}`;
+    const r = await fetch(`/api/events${qs}`);
+    if (!r.ok) throw await apiError(r, 'events failed');
+    return r.json();
+  },
   async create(data) {
     const r = await fetch('/api/jars', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
