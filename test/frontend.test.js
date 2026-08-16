@@ -316,3 +316,25 @@ test('eventLine rounds the running total to whole grams', () => {
     created_at: '2026-08-16 21:34:00', delta_g: -2.5, jar_name: 'Mango', total_after_g: 234.5,
   }), /→ 235g$/);
 });
+
+test('the room reserves a left column for the journal, and gives it back on mobile', () => {
+  // The room is a fixed-size composition, so the garland cannot simply flow
+  // beside it: the wall has to grow by exactly the width of the reserved
+  // column. And the mobile view must land back on today's numbers to the
+  // pixel — that parity is the whole reason the query exists.
+  const css = read('style.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  const scene = css.match(/(^|\})\s*\.scene\s*\{([^}]*)\}/);
+  const stack = css.match(/(^|\})\s*\.stack\s*\{([^}]*)\}/);
+  assert.ok(scene && stack);
+  assert.match(scene[2], /width\s*:\s*1000px/);
+  assert.match(scene[2], /min-width\s*:\s*1000px/);
+  assert.match(stack[2], /padding\s*:\s*182px\s+26px\s+0\s+206px/);
+
+  const query = css.match(/@media\s*\(max-width:\s*900px\)\s*\{([\s\S]*?\n\s*\})\s*\n/);
+  assert.ok(query, 'a 900px query should restore the mobile layout');
+  assert.match(query[1], /\.scene\s*\{[^}]*width\s*:\s*820px/);
+  assert.match(query[1], /\.scene\s*\{[^}]*min-width\s*:\s*820px/);
+  assert.match(query[1], /\.stack\s*\{[^}]*padding-left\s*:\s*26px/);
+  assert.match(query[1], /\.hud__log\s*\{[^}]*display\s*:\s*none/);
+  assert.match(query[1], /\.hud\s*\{[^}]*width\s*:\s*auto/);
+});
