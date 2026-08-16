@@ -66,3 +66,40 @@ test('malformed JSON body yields a JSON error body, not an HTML stack trace', as
   assert.equal(typeof res.body.error, 'string');
   assert.ok(res.body.error.length > 0);
 });
+
+test('GET /api/events returns an empty array on a fresh db', async () => {
+  const res = await request(appWithDb()).get('/api/events');
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body, []);
+});
+
+test('a created jar shows up in the journal', async () => {
+  const app = appWithDb();
+  await request(app).post('/api/jars').send({ name: 'Kush', weight_g: 10 });
+  const res = await request(app).get('/api/events');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.length, 1);
+  assert.equal(res.body[0].kind, 'add');
+  assert.equal(res.body[0].jar_name, 'Kush');
+  assert.equal(res.body[0].delta_g, 10);
+  assert.equal(res.body[0].total_after_g, 247);
+});
+
+test('GET /api/events?limit=N returns the N most recent', async () => {
+  const app = appWithDb();
+  await request(app).post('/api/jars').send({ name: 'One', weight_g: 1 });
+  await request(app).post('/api/jars').send({ name: 'Two', weight_g: 2 });
+  await request(app).post('/api/jars').send({ name: 'Three', weight_g: 3 });
+  const res = await request(app).get('/api/events?limit=2');
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body.map((e) => e.jar_name), ['Three', 'Two']);
+});
+
+test('GET /api/events rejects a nonsense limit with 400', async () => {
+  const app = appWithDb();
+  for (const limit of ['abc', '0', '-3', '1.5', '', '9999']) {
+    const res = await request(app).get(`/api/events?limit=${limit}`);
+    assert.equal(res.status, 400, `limit=${limit} should be rejected`);
+    assert.ok(res.body.error);
+  }
+});
