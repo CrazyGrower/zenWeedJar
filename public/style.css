@@ -195,7 +195,17 @@ dialog::backdrop{ background:rgba(20,14,26,.66); }
 .stats__line{font-size:11px; color:#efe6cf; line-height:1.6;}
 .stats__bars{display:flex; align-items:flex-end; gap:3px; height:60px; padding:4px;
   border:3px solid #7a5f6e; background:rgba(20,14,26,.35);}
-.stats__bar{flex:1; min-height:2px; background:var(--ember); box-shadow:inset 0 2px 0 var(--peach);}
+.stats__col{flex:1; height:100%; display:flex; align-items:flex-end; position:relative; cursor:default; outline:none;}
+.stats__bar{width:100%; min-height:2px; background:var(--ember); box-shadow:inset 0 2px 0 var(--peach);}
+.stats__col:hover .stats__bar, .stats__col:focus .stats__bar{background:var(--peach);}
+/* Centred over its column, except at the edges, where it would spill out of
+   the modal: the first bars anchor it left, the last ones right. */
+.stats__col:hover::after, .stats__col:focus::after{content:attr(data-tip); position:absolute; bottom:calc(100% + 8px);
+  left:50%; transform:translateX(-50%); white-space:nowrap; z-index:2; pointer-events:none;
+  font-size:9px; letter-spacing:1px; padding:4px 6px; background:var(--kraft); color:var(--kraft-ink);
+  border:2px solid var(--kraft-lo);}
+.stats__col:nth-child(-n+3):hover::after, .stats__col:nth-child(-n+3):focus::after{left:0; transform:none;}
+.stats__col:nth-last-child(-n+3):hover::after, .stats__col:nth-last-child(-n+3):focus::after{left:auto; right:0; transform:none;}
 .btn{ font-family:'Silkscreen'; font-weight:700; font-size:10px; padding:10px; cursor:pointer; border:3px solid; letter-spacing:1px; }
 .btn--primary{ background:var(--peach); border-color:#b87a34; color:#4a3510; box-shadow:0 4px 0 #935e26; }
 .btn--edit{ background:#9ac48f; border-color:#5f8a63; color:#204028; box-shadow:0 4px 0 #5f8a63; }

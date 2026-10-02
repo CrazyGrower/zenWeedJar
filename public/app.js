@@ -215,7 +215,12 @@ function statsBody(stats, now = new Date()) {
   const max = Math.max(0, ...stats.daily.map((d) => d.g));
   const bars = stats.daily.map((d) => {
     const h = max > 0 ? Math.round((d.g / max) * 100) : 0;
-    return `<div class="stats__bar" title="${escapeHtml(d.day)} · ${formatGrams(d.g)}g" style="height:${h}%"></div>`;
+    const [, m, day] = String(d.day).split('-');
+    const tip = `${day}/${m} · ${formatGrams(d.g)}g`;
+    // The column is full height so an empty day is still a target; tabindex
+    // lets a tap focus it on a phone, where there is no hover.
+    return `<div class="stats__col" tabindex="0" data-tip="${escapeHtml(tip)}">` +
+      `<div class="stats__bar" style="height:${h}%"></div></div>`;
   }).join('');
 
   const top = stats.top.length === 0 ? '' : `
