@@ -488,7 +488,10 @@ test('a failed journal load does not stop the jars from rendering', async () => 
 const READY = {
   total_g: 120, ready: true, window_days: 30, consumed_g: 48, per_day_g: 1.6,
   days_left: 75, trend_pct: 12.4,
-  daily: Array.from({ length: 14 }, (_, i) => ({ day: `2026-09-${String(19 + i).padStart(2, '0')}`, g: i === 13 ? 4 : i === 3 ? 2 : 0 })),
+  daily: Array.from({ length: 14 }, (_, i) => ({
+    day: new Date(Date.UTC(2026, 8, 19 + i)).toISOString().slice(0, 10),
+    g: i === 13 ? 4 : i === 3 ? 2 : 0,
+  })),
   top: [{ name: 'Mango', g: 18 }, { name: 'MWHS', g: 9.25 }],
 };
 
@@ -565,4 +568,13 @@ test('the total sign shows the runway once stats load', async () => {
   ctx.Api = { list: async () => [], events: async () => [], stats: async () => READY };
   await ctx.loadAndRender();
   assert.equal(eta.textContent, '~75 J');
+});
+
+test('each daily bar carries its day and grams as a hover tip', () => {
+  const { statsBody } = loadApp();
+  const html = statsBody(READY, new Date(2026, 9, 2, 12));
+  assert.ok(html.includes('data-tip="02/10 · 4g"'), 'the last bar is today');
+  assert.ok(html.includes('data-tip="22/09 · 2g"'));
+  assert.ok(html.includes('data-tip="20/09 · 0g"'), 'empty days are hoverable too');
+  assert.equal((html.match(/tabindex="0"/g) || []).length, 14, 'a tap focuses the column on a phone');
 });
