@@ -100,3 +100,11 @@ else falls back to the default green when drawn. Errors come back as
 latin-ext subsets, six files, 17KB total) so the pixel typography survives an
 offline client.
 Both are SIL Open Font License 1.1 — see `public/fonts/LICENSE.txt`.
+
+## Reading the stats
+
+Click the total sign, then **STATS**. The runway (`~23 J`, also shown under the
+total) is the stash divided by your average daily use over the last 30 days —
+or over the journal's real age if it is younger. Only downward weight
+adjustments count as use: adding a jar or deleting one does not, so finish a
+jar by adjusting it to 0. Below a week of history no estimate is shown.

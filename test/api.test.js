@@ -103,3 +103,12 @@ test('GET /api/events rejects a nonsense limit with 400', async () => {
     assert.ok(res.body.error);
   }
 });
+
+test('GET /api/stats returns the stash total and a not-ready estimate on a fresh db', async () => {
+  const res = await request(appWithDb()).get('/api/stats');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.total_g, 237);
+  assert.equal(res.body.ready, false);
+  assert.equal(res.body.days_left, null);
+  assert.equal(res.body.daily.length, 14);
+});

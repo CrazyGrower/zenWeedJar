@@ -28,6 +28,11 @@ window.Api = {
     if (!r.ok) throw await apiError(r, 'events failed');
     return r.json();
   },
+  async stats() {
+    const r = await fetch('/api/stats');
+    if (!r.ok) throw await apiError(r, 'stats failed');
+    return r.json();
+  },
   async create(data) {
     const r = await fetch('/api/jars', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),

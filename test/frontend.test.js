@@ -482,3 +482,87 @@ test('a failed journal load does not stop the jars from rendering', async () => 
   assert.ok(shelves.innerHTML.length > 0, 'the shelves should still render');
   assert.equal(log.innerHTML, '', 'the log should be left empty rather than throwing');
 });
+
+// --- app.js: stats and runway ---------------------------------------------------
+
+const READY = {
+  total_g: 120, ready: true, window_days: 30, consumed_g: 48, per_day_g: 1.6,
+  days_left: 75, trend_pct: 12.4,
+  daily: Array.from({ length: 14 }, (_, i) => ({ day: `2026-09-${String(19 + i).padStart(2, '0')}`, g: i === 13 ? 4 : i === 3 ? 2 : 0 })),
+  top: [{ name: 'Mango', g: 18 }, { name: 'MWHS', g: 9.25 }],
+};
+
+test('formatRunway reads as a short pixel label, or nothing when there is no estimate', () => {
+  const { formatRunway } = loadApp();
+  assert.equal(formatRunway({ ready: true, days_left: 23.6 }), '~24 J');
+  assert.equal(formatRunway({ ready: true, days_left: 0.3 }), '<1 J');
+  assert.equal(formatRunway({ ready: true, days_left: 900 }), '>1 AN');
+  assert.equal(formatRunway({ ready: true, days_left: null }), '');
+  assert.equal(formatRunway({ ready: false, days_left: null }), '');
+  assert.equal(formatRunway(null), '');
+});
+
+test('formatTrend signs the change in ASCII and rounds it', () => {
+  const { formatTrend } = loadApp();
+  assert.equal(formatTrend(12.4), '+12%');
+  assert.equal(formatTrend(-7.6), '-8%');
+  assert.equal(formatTrend(0.2), '0%');
+  assert.equal(formatTrend(null), '—');
+});
+
+test('runwayDate is the local day the stash runs out', () => {
+  const { runwayDate } = loadApp();
+  assert.equal(runwayDate(10, new Date(2026, 9, 2, 12)), '12/10');
+  assert.equal(runwayDate(null, new Date(2026, 9, 2, 12)), '');
+});
+
+test('statsBody shows the runway, rate, trend, bars and top varieties', () => {
+  const { statsBody } = loadApp();
+  const html = statsBody(READY, new Date(2026, 9, 2, 12));
+  assert.ok(html.includes('~75 J'));
+  assert.ok(html.includes('16/12'), 'the run-out date');
+  assert.ok(html.includes('1.6 g/j'));
+  assert.ok(html.includes('11.2 g/sem'));
+  assert.ok(html.includes('+12%'));
+  assert.equal((html.match(/class="stats__bar"/g) || []).length, 14);
+  assert.ok(html.includes('height:100%'), 'the biggest day fills its column');
+  assert.ok(html.includes('height:50%'));
+  assert.ok(html.includes('Mango') && html.includes('9.3g'));
+});
+
+test('statsBody says so when there is not enough history yet', () => {
+  const { statsBody } = loadApp();
+  const html = statsBody({ ...READY, ready: false, days_left: null, trend_pct: null });
+  assert.ok(html.includes('PAS ENCORE ASSEZ'));
+  assert.ok(!html.includes('~'));
+});
+
+test('statsBody escapes variety names', () => {
+  const { statsBody } = loadApp();
+  const html = statsBody({ ...READY, top: [{ name: '<img src=x>', g: 1 }] });
+  assert.ok(!html.includes('<img'));
+});
+
+test('the history dialog carries a stats tab, and still opens when stats fail', async () => {
+  const ctx = loadApp();
+  const dlg = historyDialog(ctx);
+  ctx.Api = { events: async () => [], stats: async () => { throw new Error('boom'); } };
+  await ctx.openHistory();
+  assert.ok(dlg.opened);
+  assert.ok(dlg.innerHTML.includes('data-tab="stats"'));
+  assert.ok(dlg.innerHTML.includes('Aucun mouvement'), 'the journal pane is still there');
+});
+
+test('the total sign shows the runway once stats load', async () => {
+  const ctx = loadApp();
+  const eta = { textContent: '' };
+  ctx.document.getElementById = (id) => {
+    if (id === 'shelves') return { innerHTML: '', querySelectorAll: () => [] };
+    if (id === 'hud-total') return { textContent: '' };
+    if (id === 'hud-eta') return eta;
+    return null;
+  };
+  ctx.Api = { list: async () => [], events: async () => [], stats: async () => READY };
+  await ctx.loadAndRender();
+  assert.equal(eta.textContent, '~75 J');
+});

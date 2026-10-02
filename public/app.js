@@ -165,7 +165,70 @@ function renderLog(events) {
   }).join('');
 }
 
-async function openHistory() {
+// --- stats and runway --------------------------------------------------------
+
+const DAY_MS = 86400000;
+
+function formatGrams(g) {
+  return `${Math.round((Number(g) || 0) * 10) / 10}`;
+}
+
+// The same short label on the sign and in the modal. Tilde, not ≈ — the pixel
+// fonts have no glyph for it, same as the minus sign.
+function formatRunway(stats) {
+  if (!stats || !stats.ready || stats.days_left == null) return '';
+  const d = stats.days_left;
+  if (d < 1) return '<1 J';
+  if (d > 365) return '>1 AN';
+  return `~${Math.round(d)} J`;
+}
+
+function formatTrend(pct) {
+  if (pct == null || !Number.isFinite(Number(pct))) return '—';
+  const n = Math.round(Number(pct));
+  if (n === 0) return '0%';
+  return `${n > 0 ? '+' : '-'}${Math.abs(n)}%`;
+}
+
+function runwayDate(days_left, now = new Date()) {
+  if (days_left == null) return '';
+  const d = new Date(now.getTime() + days_left * DAY_MS);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}`;
+}
+
+function statsBody(stats, now = new Date()) {
+  const runway = formatRunway(stats);
+  const head = !stats.ready
+    ? '<div class="log__empty">PAS ENCORE ASSEZ DE DONNÉES — il faut une semaine de mouvements.</div>'
+    : runway === ''
+      ? '<div class="log__empty">Aucune conso sur 30 jours : pas de date de fin.</div>'
+      : `<div class="stats__big">${runway}</div>
+         <div class="sub">JUSQU'AU ${runwayDate(stats.days_left, now)}</div>`;
+
+  const rate = !stats.ready ? '' : `
+    <div class="row"><label>CONSO MOYENNE (${Math.round(stats.window_days)}J)</label>
+      <div class="stats__line">${formatGrams(stats.per_day_g)} g/j · ${formatGrams(stats.per_day_g * 7)} g/sem</div></div>
+    <div class="row"><label>7 DERNIERS JOURS VS MOYENNE</label>
+      <div class="stats__line">${formatTrend(stats.trend_pct)}</div></div>`;
+
+  const max = Math.max(0, ...stats.daily.map((d) => d.g));
+  const bars = stats.daily.map((d) => {
+    const h = max > 0 ? Math.round((d.g / max) * 100) : 0;
+    return `<div class="stats__bar" title="${escapeHtml(d.day)} · ${formatGrams(d.g)}g" style="height:${h}%"></div>`;
+  }).join('');
+
+  const top = stats.top.length === 0 ? '' : `
+    <div class="row"><label>+ CONSOMMÉ (30J)</label>
+      <div class="stats__line">${stats.top
+        .map((t) => `${escapeHtml(t.name)} ${formatGrams(t.g)}g`).join(' · ')}</div></div>`;
+
+  return `${head}${rate}
+    <div class="row"><label>14 DERNIERS JOURS</label><div class="stats__bars">${bars}</div></div>
+    ${top}`;
+}
+
+async function openHistory(tab = 'journal') {
   const dlg = document.getElementById('history-dialog');
   let events;
   try {
@@ -174,21 +237,48 @@ async function openHistory() {
     alert(err.message);
     return;
   }
-  const body = events.length === 0
+  // Stats are a second pane: if they fail, the journal still opens.
+  let stats = null;
+  try {
+    stats = await Api.stats();
+  } catch (err) {
+    stats = null;
+  }
+  const journal = events.length === 0
     ? '<div class="log__empty">Aucun mouvement enregistré</div>'
     : `<div class="log">${events
         .map((ev) => `<div class="log__line">${escapeHtml(eventLine(ev))}</div>`)
         .join('')}</div>`;
+  const statsPane = stats
+    ? statsBody(stats)
+    : '<div class="log__empty">Stats indisponibles</div>';
 
   dlg.innerHTML = `
     <div class="modal">
-      <h2>JOURNAL</h2>
-      <div class="sub">MOUVEMENTS DU STASH</div>
-      ${body}
+      <h2>STASH</h2>
+      <div class="tabs">
+        <button class="tab" data-tab="journal">JOURNAL</button>
+        <button class="tab" data-tab="stats">STATS</button>
+      </div>
+      <div data-pane="journal"><div class="sub">MOUVEMENTS DU STASH</div>${journal}</div>
+      <div data-pane="stats">${statsPane}</div>
       <div class="actions">
         <button class="btn btn--ghost" data-act="close">FERMER</button>
       </div>
     </div>`;
+
+  const show = (name) => {
+    ['journal', 'stats'].forEach((t) => {
+      const pane = dlg.querySelector(`[data-pane="${t}"]`);
+      const btn = dlg.querySelector(`[data-tab="${t}"]`);
+      if (pane) pane.hidden = t !== name;
+      if (btn) btn.className = `tab${t === name ? ' tab--on' : ''}`;
+    });
+  };
+  ['journal', 'stats'].forEach((t) => {
+    dlg.querySelector(`[data-tab="${t}"]`).onclick = () => show(t);
+  });
+  show(tab);
   dlg.querySelector('[data-act="close"]').onclick = () => dlg.close();
   dlg.showModal();
 }
@@ -313,6 +403,8 @@ async function loadAndRender() {
     jars = [];
     renderShelves([]);
     renderLog([]);
+    const eta = document.getElementById('hud-eta');
+    if (eta) eta.textContent = '';
     setOfflineNotice(true);
     return jars;
   }
@@ -322,6 +414,15 @@ async function loadAndRender() {
     renderLog(await Api.events(LOG_TAGS));
   } catch (err) {
     renderLog([]);
+  }
+  // Same for the runway under the total: a garnish, blank when unavailable.
+  const eta = document.getElementById('hud-eta');
+  if (eta) {
+    try {
+      eta.textContent = formatRunway(await Api.stats());
+    } catch (err) {
+      eta.textContent = '';
+    }
   }
   return jars;
 }

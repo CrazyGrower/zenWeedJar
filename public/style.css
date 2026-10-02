@@ -73,6 +73,7 @@
   .hud__label, .hud__total{display:block;}
   .hud__label{font-size:8px; letter-spacing:2px; color:#8a7355; margin-top:6px;}
   .hud__total{font-family:'Press Start 2P'; font-size:18px; margin-top:7px; color:#4a3510; text-shadow:2px 2px 0 rgba(243,161,90,.5);}
+  .hud__eta{display:block; font-size:9px; letter-spacing:1px; color:#8a7355; margin-top:6px; min-height:9px;}
   .hud__offline{font-size:8px; letter-spacing:1px; line-height:1.6; color:var(--cream); margin-top:8px; text-align:center;}
   /* Mini kraft tags strung under the sign. Each carries its own border, and
      each tag drops its top edge so it shares the border of the tag above and
@@ -185,6 +186,16 @@ dialog::backdrop{ background:rgba(20,14,26,.66); }
 .modal .log{max-height:50vh; overflow-y:auto; border:3px solid #7a5f6e; background:rgba(20,14,26,.35); padding:8px;}
 .modal .log__line{font-size:10px; line-height:1.9; color:#efe6cf; white-space:nowrap;}
 .modal .log__empty{font-size:10px; color:#cdb9a6; padding:12px 0;}
+.modal .tabs{display:flex; gap:6px; margin:10px 0 14px;}
+.modal .tab{flex:1; font-family:'Silkscreen'; font-weight:700; font-size:10px; letter-spacing:1px; padding:6px;
+  cursor:pointer; background:transparent; color:#cdb9a6; border:3px solid #7a5f6e;}
+.modal .tab--on{background:var(--kraft); color:var(--kraft-ink); border-color:var(--kraft-lo);}
+.stats__big{font-family:'Press Start 2P'; font-size:22px; color:var(--peach); margin:4px 0 8px;
+  text-shadow:2px 2px 0 rgba(243,161,90,.35);}
+.stats__line{font-size:11px; color:#efe6cf; line-height:1.6;}
+.stats__bars{display:flex; align-items:flex-end; gap:3px; height:60px; padding:4px;
+  border:3px solid #7a5f6e; background:rgba(20,14,26,.35);}
+.stats__bar{flex:1; min-height:2px; background:var(--ember); box-shadow:inset 0 2px 0 var(--peach);}
 .btn{ font-family:'Silkscreen'; font-weight:700; font-size:10px; padding:10px; cursor:pointer; border:3px solid; letter-spacing:1px; }
 .btn--primary{ background:var(--peach); border-color:#b87a34; color:#4a3510; box-shadow:0 4px 0 #935e26; }
 .btn--edit{ background:#9ac48f; border-color:#5f8a63; color:#204028; box-shadow:0 4px 0 #5f8a63; }

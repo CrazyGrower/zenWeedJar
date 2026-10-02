@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { listJars, createJar, updateJar, deleteJar, listEvents, EVENT_CAP, ValidationError } from './jars.js';
+import { computeStats } from './stats.js';
 
 export function createApp(db) {
   const app = express();
@@ -47,6 +48,8 @@ export function createApp(db) {
     }
     res.json(listEvents(db, { limit: n }));
   });
+
+  app.get('/api/stats', (req, res) => res.json(computeStats(db)));
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   app.use(express.static(path.join(__dirname, 'public')));
