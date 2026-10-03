@@ -578,3 +578,17 @@ test('each daily bar carries its day and grams as a hover tip', () => {
   assert.ok(html.includes('data-tip="20/09 · 0g"'), 'empty days are hoverable too');
   assert.equal((html.match(/tabindex="0"/g) || []).length, 14, 'a tap focuses the column on a phone');
 });
+
+// --- vendored assets ---------------------------------------------------------
+
+test('three.js r128 and the two new pixel fonts are served locally', () => {
+  const three = read('vendor/three.min.js');
+  assert.match(three.slice(0, 400), /REVISION\s*=\s*"128"|r128|"128"/, 'three.js should be r128');
+  const css = read('fonts/fonts.css');
+  for (const fam of ['Jersey 10', 'Pixelify Sans']) {
+    assert.ok(css.includes(`font-family: '${fam}'`), `${fam} should be declared`);
+  }
+  for (const f of ['jersey-10-400-latin.woff2', 'jersey-10-400-latin-ext.woff2', 'pixelify-sans-latin.woff2', 'pixelify-sans-latin-ext.woff2']) {
+    assert.ok(fs.statSync(path.join(PUBLIC, 'fonts', f)).size > 1000, `${f} should exist`);
+  }
+});

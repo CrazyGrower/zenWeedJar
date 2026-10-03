@@ -11,3 +11,7 @@ Full license text: https://openfontlicense.org/open-font-license-official-text/
 Under the OFL these fonts may be used, studied, modified and redistributed
 freely, including bundled with software, provided they are not sold by
 themselves and any derivative fonts are released under the same license.
+
+Jersey 10 — Copyright 2023 The Soft Type Project Authors (https://github.com/scfried/soft-type-jersey)
+Pixelify Sans — Copyright 2021 The Pixelify Sans Project Authors (https://github.com/eifetx/Pixelify-Sans)
+Both licensed under the SIL Open Font License, Version 1.1 (same terms as above).
