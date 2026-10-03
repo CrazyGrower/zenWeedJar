@@ -96,10 +96,11 @@ else falls back to the default green when drawn. Errors come back as
 
 ## Fonts
 
-`Silkscreen` and `Press Start 2P` are self-hosted under `public/fonts/` (latin and
-latin-ext subsets, six files, 17KB total) so the pixel typography survives an
-offline client.
-Both are SIL Open Font License 1.1 — see `public/fonts/LICENSE.txt`.
+`Silkscreen`, `Press Start 2P`, `Jersey 10` and `Pixelify Sans` are self-hosted
+under `public/fonts/` (latin and latin-ext subsets) so the pixel typography
+survives an offline client. All are SIL Open Font License 1.1 — see
+`public/fonts/LICENSE.txt`. Three.js r128 (MIT) is vendored the same way under
+`public/vendor/`.
 
 ## Reading the stats
 

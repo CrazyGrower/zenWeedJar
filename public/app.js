@@ -1,5 +1,24 @@
 const CAP_COLORS = ['#79a67e', '#e2a04c', '#b07d9c', '#8fb0d0', '#d08fa8'];
 
+function swatchesHtml(current) {
+  const chosen = StashModel.capColor(current);
+  const colors = CAP_COLORS.includes(chosen) ? CAP_COLORS : [...CAP_COLORS, chosen];
+  return `<fieldset class="swatches"><legend>COUVERCLE</legend>${colors.map((c) =>
+    `<label class="swatch" style="--c:${c}" title="${c}"><input type="radio" name="color_tag" value="${c}"${c === chosen ? ' checked' : ''}><span></span></label>`,
+  ).join('')}</fieldset>`;
+}
+
+async function takeFromJar(jar, n) {
+  // the card may have been opened before the last reload landed
+  const fresh = jars.find((j) => j.id === jar.id) || jar;
+  try {
+    await Api.update(jar.id, { weight_g: StashModel.takeGrams(fresh.weight_g, n) });
+  } catch (err) {
+    alert(err.message);
+  }
+  await loadAndRender();
+}
+
 function openForm(jar) {
   const dlg = document.getElementById('form-dialog');
   const editing = !!jar;
@@ -13,7 +32,7 @@ function openForm(jar) {
       <div class="row"><label>POIDS (g) *</label><input name="weight_g" type="number" step="0.1" min="0" value="${j.weight_g}" required></div>
       <div class="row"><label>THC %</label><input name="thc_percent" type="number" step="0.1" min="0" value="${j.thc_percent ?? ''}"></div>
       <div class="row"><label>% INDICA (0-100)</label><input name="indica_pct" type="number" step="1" min="0" max="100" value="${j.indica_pct ?? ''}"></div>
-      <div class="row"><label>COULEUR BOUCHON</label><input name="color_tag" value="${escapeHtml(j.color_tag || CAP_COLORS[0])}"></div>
+      <div class="row">${swatchesHtml(j.color_tag || CAP_COLORS[0])}</div>
       <div class="row"><label>NOTES</label><textarea name="notes" rows="2">${escapeHtml(j.notes || '')}</textarea></div>
       <div class="actions">
         <button class="btn btn--primary" value="save">${editing ? 'ENREGISTRER' : 'AJOUTER'}</button>
@@ -96,7 +115,13 @@ function openDetail(jar) {
       <div class="sub">RÉCOLTE ${escapeHtml(jar.harvest_date || '—')}</div>
 
       <div class="row"><label>POIDS</label>
-        <div style="font-family:'Press Start 2P';font-size:16px;">${weight} g</div></div>
+        <div class="weight">${escapeHtml(StashModel.formatTapeGrams(weight))}</div></div>
+
+      <div class="row"><label>RETIRER</label><div class="take">
+        <button class="btn btn--take" data-take="0.5">-0,5 g</button>
+        <button class="btn btn--take" data-take="1">-1 g</button>
+        <button class="btn btn--take" data-take="2">-2 g</button>
+      </div></div>
 
       ${thc == null ? '' : `<div class="row"><label>THC · ${escapeHtml(String(jar.thc_percent))}%</label>
         <div class="bar"><span style="width:${thc}%"></span></div></div>`}
@@ -106,7 +131,7 @@ function openDetail(jar) {
         <div class="s" style="width:${100 - indica}%"></div></div></div>`}
 
       ${!jar.notes ? '' : `<div class="row"><label>NOTES</label>
-        <div style="font-size:10px;line-height:1.6;color:#efe6cf;">${escapeHtml(jar.notes)}</div></div>`}
+        <div class="stats__line">${escapeHtml(jar.notes)}</div></div>`}
 
       <div class="actions">
         <button class="btn btn--primary" data-act="adjust">AJUSTER POIDS</button>
@@ -120,12 +145,17 @@ function openDetail(jar) {
   dlg.querySelector('[data-act="edit"]').onclick = () => { dlg.close(); openForm(jar); };
   dlg.querySelector('[data-act="adjust"]').onclick = () => { dlg.close(); adjustWeight(jar); };
   dlg.querySelector('[data-act="delete"]').onclick = () => { dlg.close(); removeJar(jar); };
+  dlg.querySelectorAll('[data-take]').forEach((b) => {
+    b.onclick = () => { dlg.close(); takeFromJar(jar, Number(b.dataset.take)); };
+  });
+  if (window.Scene3D && window.Scene3D.select) {
+    window.Scene3D.select(jar.id);
+    dlg.addEventListener('close', () => window.Scene3D.select(null), { once: true });
+  }
   dlg.showModal();
 }
 
 // --- the movement journal ----------------------------------------------------
-
-const LOG_TAGS = 10;
 
 // One decimal: the shelf deals in tenths of a gram and a pixel label has no
 // room for more. An ASCII hyphen, not U+2212 — the pixel fonts have no glyph
@@ -153,16 +183,13 @@ function eventLine(ev) {
   return `${formatStamp(ev.created_at)} · ${formatDelta(ev.delta_g)} · ${ev.jar_name} · → ${total}g`;
 }
 
-function renderLog(events) {
-  const box = document.getElementById('hud-log');
-  if (!box) return;
-  // The tags carry their own borders and the container has no background, so
-  // an empty journal leaves no empty frame hanging on the wall.
-  box.innerHTML = (events || []).slice(0, LOG_TAGS).map((ev) => {
-    const dir = Number(ev.delta_g) < 0 ? 'down' : 'up';
-    return `<div class="ev"><span class="d ${dir}">${formatDelta(ev.delta_g)}</span> ` +
-      `<span class="n">${escapeHtml(ev.jar_name)}</span></div>`;
-  }).join('');
+// The newest movement, in one line under the title. textContent, not HTML:
+// the jar name never needs escaping here.
+function renderLastMove(events) {
+  const el = document.getElementById('hud-last');
+  if (!el) return;
+  const ev = (events || [])[0];
+  el.textContent = ev ? `Dernier mouvement : ${formatDelta(ev.delta_g)} ${ev.jar_name}` : '';
 }
 
 // --- stats and runway --------------------------------------------------------
@@ -290,92 +317,70 @@ async function openHistory(tab = 'journal') {
 
 let jars = [];
 
-function ghostSlot() {
-  return `<div class="slot"><svg class="jar ghost" viewBox="0 0 32 46" shape-rendering="crispEdges">
-    <use href="#sil" fill="none" stroke="rgba(247,233,207,.20)" stroke-width="0.7"/></svg></div>`;
-}
-
-function filledSlot(jar) {
-  // Deterministic nudge so the shelf doesn't read as a tidy row. Keyed on the
-  // jar id, so a jar keeps its offset across re-renders.
-  const jx = (hash(jar.id, 7) % 13) - 6;
-  return `<div class="slot"><div class="jarwrap" data-id="${jar.id}" style="--jx:${jx}px">
-    ${JarSvg.buildJar(jar)}
-    <div class="label"><span class="n">${escapeHtml(jar.name)}</span>
-      <span class="d">${escapeHtml(jar.harvest_date || '')}</span></div>
-  </div></div>`;
-}
-
-// splitmix32 mixer — same jar id and salt always give the same number, so
-// placement survives a re-render instead of jumping after every edit. The
-// avalanche matters: a weaker mix left the low bits correlated for small
-// sequential ids, which put every jar in an even column and made the "random"
-// shelf read as a grid.
-function hash(id, salt) {
-  let x = (Math.imul(Number(id) || 0, 2654435761) ^ Math.imul(salt, 2246822519)) >>> 0;
-  x = Math.imul(x ^ (x >>> 16), 2246822519) >>> 0;
-  x = Math.imul(x ^ (x >>> 13), 3266489917) >>> 0;
-  return (x ^ (x >>> 16)) >>> 0;
-}
-
-// Scatter jars instead of filling slots left to right. Jars are dealt round
-// robin across the shelves so no shelf sits empty while another is full, and
-// the column within a shelf comes from the jar's id hash — random-looking, but
-// the same on every re-render rather than jumping after each edit.
-// Columns are taken from a shuffled order rather than a hashed column with
-// linear probing: probing hands a colliding jar the next column along, which
-// packs jars into contiguous runs and undoes the scattering.
-function shuffledColumns(row, perRow) {
-  const cols = Array.from({ length: perRow }, (_, i) => i);
-  for (let i = perRow - 1; i > 0; i--) {
-    const j = hash(row, 9 + i) % (i + 1);
-    [cols[i], cols[j]] = [cols[j], cols[i]];
-  }
-  return cols;
-}
-
-function placeJars(list, rows, perRow) {
-  const slots = new Array(rows * perRow).fill(null);
-  // Sorting by hash rather than list order means editing a jar never moves it;
-  // only adding or removing one re-deals the shelves.
-  const ordered = [...list].sort((a, b) => hash(a.id, 5) - hash(b.id, 5));
-  const taken = Array.from({ length: rows }, () => 0);
-
-  ordered.forEach((jar, k) => {
-    let row = k % rows;
-    while (taken[row] >= perRow) row = (row + 1) % rows; // shelf full: spill onward
-    const col = shuffledColumns(row, perRow)[taken[row]];
-    taken[row] += 1;
-    slots[row * perRow + col] = jar;
-  });
-  return slots;
-}
-
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function renderShelves(list) {
-  const PER_ROW = 6;
-  const rows = Math.max(2, Math.ceil(list.length / PER_ROW));
-  const cells = placeJars(list, rows, PER_ROW)
-    .map((jar) => (jar ? filledSlot(jar) : ghostSlot()));
+const PREF_MODE_KEY = 'pixelstash.window';
 
-  let html = '';
-  for (let r = 0; r < rows; r++) {
-    const slots = cells.slice(r * PER_ROW, r * PER_ROW + PER_ROW).join('');
-    html += `<div class="shelf"><div class="shelf__row">${slots}</div><div class="shelf__plank"></div></div>`;
-  }
-  const container = document.getElementById('shelves');
-  container.innerHTML = html;
+function readPref(key, fallback) {
+  try { return localStorage.getItem(key) || fallback; } catch (err) { return fallback; }
+}
 
-  container.querySelectorAll('.jarwrap').forEach((el) => {
+function writePref(key, value) {
+  try { localStorage.setItem(key, value); } catch (err) { /* private mode: keep the choice for this visit only */ }
+}
+
+function fallbackHtml(list) {
+  if (!list || list.length === 0) return '<p class="fallback__empty">Aucun bocal pour l’instant.</p>';
+  return list.map((jar) => `<button class="fallback__jar" type="button" data-id="${Number(jar.id)}">` +
+    `<span>${escapeHtml(jar.name)}</span><b>${escapeHtml(StashModel.formatTapeGrams(jar.weight_g))}</b></button>`).join('');
+}
+
+// The 3D shelf when WebGL is there, a plain list of buttons otherwise.
+function renderJars(list) {
+  const S = window.Scene3D;
+  if (S && S.isMounted()) { S.setJars(list); return; }
+  const box = document.getElementById('fallback');
+  if (!box) return;
+  box.hidden = false;
+  box.innerHTML = fallbackHtml(list);
+  box.querySelectorAll('[data-id]').forEach((el) => {
     el.addEventListener('click', () => {
       const jar = jars.find((j) => j.id === Number(el.dataset.id));
       if (jar) openDetail(jar);
     });
   });
+}
+
+function mountScene() {
+  const S = window.Scene3D;
+  const canvas = document.getElementById('scene');
+  if (!canvas) return false;
+  if (!S) { canvas.hidden = true; return false; }
+  // The HUD and the bottom bar float over the canvas; the scene frames the
+  // shelves in the band left between them.
+  const height = (sel) => { const el = document.querySelector(sel); return el ? el.offsetHeight : 0; };
+  const ok = S.mount(canvas, document.getElementById('labels'), {
+    mode: readPref(PREF_MODE_KEY, 'sunset'),
+    insets: () => ({ top: height('.hud'), bottom: height('.bottom') }),
+  });
+  if (!ok) { canvas.hidden = true; return false; }
+  // the HUD grows when the last-move line or the offline notice fills in
+  if (typeof ResizeObserver !== 'undefined' && S.refit) {
+    const ro = new ResizeObserver(() => S.refit());
+    ['.hud', '.bottom'].forEach((sel) => { const el = document.querySelector(sel); if (el) ro.observe(el); });
+  }
+  S.onJarClick((id) => {
+    const jar = jars.find((j) => j.id === id);
+    if (jar) openDetail(jar);
+  });
+  return true;
+}
+
+function showMode(mode) {
+  document.querySelectorAll('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
 }
 
 function renderHud(list) {
@@ -402,12 +407,12 @@ async function loadAndRender() {
   try {
     jars = await Api.list();
     renderHud(jars);
-    renderShelves(jars);
+    renderJars(jars);
     setOfflineNotice(false);
   } catch (err) {
     jars = [];
-    renderShelves([]);
-    renderLog([]);
+    renderJars([]);
+    renderLastMove([]);
     const eta = document.getElementById('hud-eta');
     if (eta) eta.textContent = '';
     setOfflineNotice(true);
@@ -416,9 +421,9 @@ async function loadAndRender() {
   // Its own try: the journal is a garnish, and losing it must not blank the
   // shelves that just loaded fine.
   try {
-    renderLog(await Api.events(LOG_TAGS));
+    renderLastMove(await Api.events(1));
   } catch (err) {
-    renderLog([]);
+    renderLastMove([]);
   }
   // Same for the runway under the total: a garnish, blank when unavailable.
   const eta = document.getElementById('hud-eta');
@@ -432,17 +437,16 @@ async function loadAndRender() {
   return jars;
 }
 
-// On a screen narrower than the room, open on the middle of it rather than the
-// left edge — that's where the add button lives. No-op once the whole scene
-// fits, and it only fires on load, so it never fights a swipe in progress.
-function centreStage() {
-  const stage = document.getElementById('stage');
-  if (stage) stage.scrollLeft = (stage.scrollWidth - stage.clientWidth) / 2;
-}
-
 document.addEventListener('DOMContentLoaded', () => {
+  mountScene();
+  showMode(readPref(PREF_MODE_KEY, 'sunset'));
   loadAndRender();
-  centreStage();
   document.getElementById('add-btn').addEventListener('click', () => openForm());
-  document.getElementById('hud-tag').addEventListener('click', openHistory);
+  document.getElementById('hud-tag').addEventListener('click', () => openHistory());
+  document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => {
+    const mode = b.dataset.mode;
+    writePref(PREF_MODE_KEY, mode);
+    showMode(mode);
+    if (window.Scene3D && window.Scene3D.isMounted()) window.Scene3D.setMode(mode);
+  }));
 });
