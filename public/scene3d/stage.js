@@ -24,7 +24,10 @@
   let selected = null;
   let clickCb = null;
   const target = new THREE.Vector3(0.95, 1.6, 0.45);
-  let halfH = 1.65, yaw = YAW0, pitch = 0.08, yawT = yaw, pitchT = pitch, dist = 8;
+  // halfH/centerY: the shelves and their lids; insets: the px the HUD and the
+  // bottom bar cover at the top and bottom of the canvas
+  let halfH = 1.5, centerY = 1.6, insets = null;
+  let yaw = YAW0, pitch = 0.08, yawT = yaw, pitchT = pitch, dist = 8;
   let tapeScale = 1;
 
   // dust motes in the light
@@ -44,7 +47,12 @@
     const t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
     const portrait = camera.aspect < PORTRAIT;
     target.x = portrait ? 1.27 : 0.95;
-    dist = Math.max(halfH / t, (portrait ? HALF_W_PORTRAIT : HALF_W) / (t * camera.aspect)) + 0.9;
+    const h = canvas.clientHeight || global.innerHeight;
+    const ins = (insets && insets()) || { top: 0, bottom: 0 };
+    // the overlays float over the canvas: fit the shelves in the band between them
+    const band = Math.max(0.4, (h - ins.top - ins.bottom) / h);
+    dist = Math.max(halfH / band / t, (portrait ? HALF_W_PORTRAIT : HALF_W) / (t * camera.aspect)) + 0.9;
+    target.y = centerY - ((ins.bottom - ins.top) / 2) * (2 * t * (dist - 0.1) / h);
     // screen pixels between two neighbouring jars, at the jars' depth
     const w = canvas.clientWidth || global.innerWidth;
     const visibleW = 2 * t * camera.aspect * (dist - 0.1);
@@ -74,8 +82,9 @@
     for (let i = 0; i < DN; i++) { dustPos[i * 3] = -0.9 + dr() * 3.2; dustPos[i * 3 + 1] = 0.1 + dr() * (dustTop - 0.1); dustPos[i * 3 + 2] = dr() * 1.3; }
     dustGeo.attributes.position.needsUpdate = true;
     root.add(dust);
-    target.y = (ys[0] + top) / 2 + 0.5;
-    halfH = (top - ys[0]) / 2 + 0.95;
+    const lo = ys[0] - 0.2, hi = top + 1.35;
+    centerY = (lo + hi) / 2;
+    halfH = (hi - lo) / 2;
     if (camera) fit();
   }
 
@@ -84,7 +93,10 @@
     const keep = new Set(slots.map((s) => s.jar.id));
     views.forEach((v, id) => { if (!keep.has(id)) { S3.disposeJarView(v); views.delete(id); } });
     const now = performance.now();
-    slots.forEach((s, k) => {
+    // staggered by rank among the jars that drop, not by shelf position: a
+    // jar added to a full shelf drops right away instead of seconds later
+    let nth = 0;
+    slots.forEach((s) => {
       const x = S3.SHELF_X[s.col], y = S3.shelfY(s.shelf, shelves) + 0.05;
       let v = views.get(s.jar.id);
       if (v && (v.group.position.x !== x || v.baseY !== y)) { S3.disposeJarView(v); views.delete(s.jar.id); v = null; }
@@ -96,7 +108,7 @@
         if (v.dropAt != null) { v.dropAt = null; S3.settleBuds(v); }
         S3.updateJarView(v, s.jar);
       }
-      if (animateIds.has(s.jar.id)) { v.dropAt = now + 500 + k * 280; S3.animateDrop(v, -1); }
+      if (animateIds.has(s.jar.id)) { v.dropAt = now + 500 + nth * 280; nth += 1; S3.animateDrop(v, -1); }
     });
   }
 
@@ -192,6 +204,7 @@
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(32, 1, 0.1, 60);
     mode = opts && opts.mode === 'night' ? 'night' : 'sunset';
+    insets = (opts && opts.insets) || null;
     shelves = M.MIN_SHELVES;
     rebuildRoom();
     bindPointer();
@@ -200,7 +213,7 @@
     // tape labels are drawn with the pixel fonts: repaint once they arrive
     if (global.document.fonts) {
       Promise.all([global.document.fonts.load('600 10px "Pixelify Sans"'), global.document.fonts.load('15px "Jersey 10"')])
-        .then(() => views.forEach((v) => S3.updateJarView(v, v.jar))).catch(() => {});
+        .then(() => { views.forEach((v) => S3.updateJarView(v, v.jar)); resize(); }).catch(() => {});
     }
     tick();
     return true;

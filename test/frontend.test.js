@@ -387,3 +387,59 @@ test('the window preference survives a storage that throws', () => {
   assert.equal(ctx.readPref('pixelstash.window', 'sunset'), 'sunset');
   assert.doesNotThrow(() => ctx.writePref('pixelstash.window', 'night'));
 });
+
+// --- app.js: the jar card and the form ---------------------------------------
+
+function captureDialog(ctx) {
+  const dlg = { html: '', set innerHTML(v) { this.html = v; }, get innerHTML() { return this.html; },
+    querySelector: () => ({ set onclick(_) {}, addEventListener() {} }), querySelectorAll: () => [],
+    addEventListener() {}, showModal() {}, close() {} };
+  ctx.document.getElementById = () => dlg;
+  return dlg;
+}
+
+test('the jar card offers -0.5, -1 and -2 g in ASCII', () => {
+  const ctx = loadApp();
+  const dlg = captureDialog(ctx);
+  ctx.openDetail({ id: 1, name: 'Mango', weight_g: 65, harvest_date: '23/07', color_tag: '#e2a04c' });
+  for (const n of ['0.5', '1', '2']) assert.ok(dlg.html.includes(`data-take="${n}"`), `a ${n} g button`);
+  assert.ok(dlg.html.includes('-0,5 g') && !dlg.html.includes('−'), 'ASCII hyphen only');
+  assert.ok(dlg.html.includes('65 g'));
+});
+
+test('takeFromJar saves the new weight, never below zero, then reloads', async () => {
+  const ctx = loadApp();
+  const calls = [];
+  let reloaded = 0;
+  // loadAndRender writes to the HUD; any element will do
+  ctx.document.getElementById = () => ({ textContent: '', hidden: true, innerHTML: '', querySelectorAll: () => [] });
+  ctx.Api = { update: async (id, data) => { calls.push([id, data]); }, list: async () => { reloaded++; return []; }, events: async () => [], stats: async () => ({}) };
+  await ctx.takeFromJar({ id: 7, weight_g: 0.4 }, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [[7, { weight_g: 0 }]]);
+  assert.equal(reloaded, 1);
+});
+
+test('swatchesHtml checks the current cap and keeps a custom one', () => {
+  const { swatchesHtml } = loadApp();
+  const html = swatchesHtml('#e2a04c');
+  assert.equal((html.match(/type="radio"/g) || []).length, 5);
+  assert.match(html, /value="#e2a04c" checked/);
+  const custom = swatchesHtml('#123456');
+  assert.equal((custom.match(/type="radio"/g) || []).length, 6, 'a custom colour is offered too');
+  assert.match(custom, /value="#123456" checked/);
+  const bad = swatchesHtml('"><img src=x>');
+  assert.ok(!bad.includes('<img'), 'a broken colour falls back instead of being injected');
+  assert.match(bad, /value="#79a67e" checked/);
+});
+
+test('mountScene tells the scene how much of the canvas the HUD and the bottom bar cover', () => {
+  const ctx = loadApp();
+  let opts = null;
+  ctx.window.Scene3D = { mount: (c, l, o) => { opts = o; return true; }, onJarClick() {} };
+  ctx.localStorage = { getItem: () => 'night', setItem() {} };
+  ctx.document.getElementById = (id) => (id === 'scene' ? {} : id === 'labels' ? {} : null);
+  ctx.document.querySelector = (sel) => (sel === '.hud' ? { offsetHeight: 104 } : sel === '.bottom' ? { offsetHeight: 136 } : null);
+  assert.equal(ctx.mountScene(), true);
+  assert.equal(opts.mode, 'night');
+  assert.deepEqual(JSON.parse(JSON.stringify(opts.insets())), { top: 104, bottom: 136 });
+});

@@ -1,5 +1,22 @@
 const CAP_COLORS = ['#79a67e', '#e2a04c', '#b07d9c', '#8fb0d0', '#d08fa8'];
 
+function swatchesHtml(current) {
+  const chosen = StashModel.capColor(current);
+  const colors = CAP_COLORS.includes(chosen) ? CAP_COLORS : [...CAP_COLORS, chosen];
+  return `<fieldset class="swatches"><legend>COUVERCLE</legend>${colors.map((c) =>
+    `<label class="swatch" style="--c:${c}" title="${c}"><input type="radio" name="color_tag" value="${c}"${c === chosen ? ' checked' : ''}><span></span></label>`,
+  ).join('')}</fieldset>`;
+}
+
+async function takeFromJar(jar, n) {
+  try {
+    await Api.update(jar.id, { weight_g: StashModel.takeGrams(jar.weight_g, n) });
+  } catch (err) {
+    alert(err.message);
+  }
+  await loadAndRender();
+}
+
 function openForm(jar) {
   const dlg = document.getElementById('form-dialog');
   const editing = !!jar;
@@ -13,7 +30,7 @@ function openForm(jar) {
       <div class="row"><label>POIDS (g) *</label><input name="weight_g" type="number" step="0.1" min="0" value="${j.weight_g}" required></div>
       <div class="row"><label>THC %</label><input name="thc_percent" type="number" step="0.1" min="0" value="${j.thc_percent ?? ''}"></div>
       <div class="row"><label>% INDICA (0-100)</label><input name="indica_pct" type="number" step="1" min="0" max="100" value="${j.indica_pct ?? ''}"></div>
-      <div class="row"><label>COULEUR BOUCHON</label><input name="color_tag" value="${escapeHtml(j.color_tag || CAP_COLORS[0])}"></div>
+      <div class="row">${swatchesHtml(j.color_tag || CAP_COLORS[0])}</div>
       <div class="row"><label>NOTES</label><textarea name="notes" rows="2">${escapeHtml(j.notes || '')}</textarea></div>
       <div class="actions">
         <button class="btn btn--primary" value="save">${editing ? 'ENREGISTRER' : 'AJOUTER'}</button>
@@ -96,7 +113,13 @@ function openDetail(jar) {
       <div class="sub">RÉCOLTE ${escapeHtml(jar.harvest_date || '—')}</div>
 
       <div class="row"><label>POIDS</label>
-        <div style="font-family:'Press Start 2P';font-size:16px;">${weight} g</div></div>
+        <div class="weight">${escapeHtml(StashModel.formatTapeGrams(weight))}</div></div>
+
+      <div class="row"><label>RETIRER</label><div class="take">
+        <button class="btn btn--take" data-take="0.5">-0,5 g</button>
+        <button class="btn btn--take" data-take="1">-1 g</button>
+        <button class="btn btn--take" data-take="2">-2 g</button>
+      </div></div>
 
       ${thc == null ? '' : `<div class="row"><label>THC · ${escapeHtml(String(jar.thc_percent))}%</label>
         <div class="bar"><span style="width:${thc}%"></span></div></div>`}
@@ -106,7 +129,7 @@ function openDetail(jar) {
         <div class="s" style="width:${100 - indica}%"></div></div></div>`}
 
       ${!jar.notes ? '' : `<div class="row"><label>NOTES</label>
-        <div style="font-size:10px;line-height:1.6;color:#efe6cf;">${escapeHtml(jar.notes)}</div></div>`}
+        <div class="stats__line">${escapeHtml(jar.notes)}</div></div>`}
 
       <div class="actions">
         <button class="btn btn--primary" data-act="adjust">AJUSTER POIDS</button>
@@ -120,6 +143,13 @@ function openDetail(jar) {
   dlg.querySelector('[data-act="edit"]').onclick = () => { dlg.close(); openForm(jar); };
   dlg.querySelector('[data-act="adjust"]').onclick = () => { dlg.close(); adjustWeight(jar); };
   dlg.querySelector('[data-act="delete"]').onclick = () => { dlg.close(); removeJar(jar); };
+  dlg.querySelectorAll('[data-take]').forEach((b) => {
+    b.onclick = () => { dlg.close(); takeFromJar(jar, Number(b.dataset.take)); };
+  });
+  if (window.Scene3D && window.Scene3D.select) {
+    window.Scene3D.select(jar.id);
+    dlg.addEventListener('close', () => window.Scene3D.select(null), { once: true });
+  }
   dlg.showModal();
 }
 
@@ -326,7 +356,13 @@ function mountScene() {
   const S = window.Scene3D;
   const canvas = document.getElementById('scene');
   if (!S || !canvas) return false;
-  const ok = S.mount(canvas, document.getElementById('labels'), { mode: readPref(PREF_MODE_KEY, 'sunset') });
+  // The HUD and the bottom bar float over the canvas; the scene frames the
+  // shelves in the band left between them.
+  const height = (sel) => { const el = document.querySelector(sel); return el ? el.offsetHeight : 0; };
+  const ok = S.mount(canvas, document.getElementById('labels'), {
+    mode: readPref(PREF_MODE_KEY, 'sunset'),
+    insets: () => ({ top: height('.hud'), bottom: height('.bottom') }),
+  });
   if (!ok) { canvas.hidden = true; return false; }
   S.onJarClick((id) => {
     const jar = jars.find((j) => j.id === id);
