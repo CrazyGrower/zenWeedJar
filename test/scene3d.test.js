@@ -6,7 +6,7 @@ import vm from 'vm';
 import { fileURLToPath } from 'url';
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
-const SCENE_FILES = ['scene3d/kit.js', 'scene3d/props.js'];
+const SCENE_FILES = ['scene3d/kit.js', 'scene3d/props.js', 'scene3d/room.js', 'scene3d/jar.js'];
 
 test('every scene file parses', () => {
   for (const f of SCENE_FILES) {
