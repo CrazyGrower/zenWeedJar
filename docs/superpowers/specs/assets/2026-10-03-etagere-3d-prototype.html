@@ -1,0 +1,561 @@
+<title>Étagère au couchant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jersey+10&family=Pixelify+Sans:wght@400;600&display=swap">
+<style>
+/* Layout: full-window low-res WebGL room upscaled with hard pixels; four label treatments float over (or live inside) the jars. */
+:root{
+  --night:#1c1222; --wood:#2a1610; --kraft:#e8d8a6; --cream:#f6e7c8; --amber:#f0b860; --muted:#d4b283; --ink:#2a1610; --panel:#1f120c; --edge:#6b3f26; --tape:#efe4c4;
+  --display:'Jersey 10', 'Pixelify Sans', monospace;
+  --body:'Pixelify Sans', ui-monospace, monospace;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--night);color:var(--cream);font-family:var(--body);overflow:hidden}
+.app{position:relative;height:100%;overflow:hidden}
+canvas#c{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none;cursor:grab}
+canvas#c.dragging{cursor:grabbing}
+canvas#c.hover{cursor:pointer}
+
+.labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.lbl{position:absolute;left:0;top:0;image-rendering:pixelated;image-rendering:crisp-edges;filter:drop-shadow(0 2px 0 #0006)}
+
+.top{position:absolute;left:0;right:0;top:0;padding:16px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;pointer-events:none}
+.title{display:flex;flex-direction:column;gap:4px;min-width:0}
+.title h1{margin:0;font-family:var(--display);font-weight:400;font-size:42px;line-height:.85;text-shadow:0 4px 0 #0008;text-wrap:balance}
+.title span{font-size:14px;color:var(--muted);text-shadow:0 2px 0 #000a}
+.tag{flex:none;background:var(--kraft);color:var(--ink);border:4px solid var(--wood);box-shadow:0 4px 0 #0006;padding:6px 12px 8px;text-align:center}
+.tag b{display:block;font-family:var(--display);font-weight:400;font-size:38px;line-height:.85;font-variant-numeric:tabular-nums}
+.tag small{font-size:12px;color:#5a3d24}
+
+.bottom{position:absolute;left:0;right:0;bottom:0;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+.bar{pointer-events:auto;display:flex;align-items:center;gap:4px;background:var(--panel);border:2px solid var(--edge);padding:4px;flex-wrap:wrap;justify-content:center;max-width:100%;box-sizing:border-box}
+.bar span{font-size:13px;color:var(--muted);padding:0 6px}
+.bar button{font-family:var(--body);font-size:14px;min-width:44px;min-height:38px;padding:0 10px;background:transparent;color:var(--cream);border:2px solid transparent;cursor:pointer}
+.bar button[aria-pressed="true"]{background:var(--amber);color:var(--ink);border-color:var(--wood)}
+.hint{font-size:13px;color:var(--muted);text-shadow:0 2px 0 #000a}
+
+.sheet{pointer-events:auto;width:min(360px,100%);box-sizing:border-box;background:var(--panel);border:4px solid var(--edge);box-shadow:0 6px 0 #000a;padding:14px;display:flex;flex-direction:column;gap:12px}
+.sheet header{display:flex;justify-content:space-between;align-items:flex-end;gap:8px}
+.sheet h2{margin:0;font-family:var(--display);font-weight:400;font-size:40px;line-height:.85}
+.sheet .g{font-family:var(--display);font-size:44px;line-height:.85;color:var(--amber);font-variant-numeric:tabular-nums}
+.meta{font-size:13px;color:var(--muted)}
+.row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.px{font-family:var(--display);font-size:26px;height:48px;background:var(--kraft);color:var(--ink);border:4px solid #120a06;box-shadow:0 4px 0 #8a6a3a;cursor:pointer}
+.px.main{background:var(--amber);box-shadow:0 4px 0 #a86a2a}
+.px:active{transform:translateY(4px);box-shadow:none}
+.close{font-family:var(--body);font-size:14px;background:none;border:2px solid var(--edge);color:var(--muted);min-height:36px;padding:0 10px;cursor:pointer}
+button:focus-visible{outline:3px solid var(--cream);outline-offset:2px}
+.fallback{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;color:var(--muted)}
+</style>
+
+<div class="app">
+  <canvas id="c" aria-label="Étagère en 3D avec quatre bocaux et un plant"></canvas>
+  <div class="labels" id="labels" aria-hidden="true"></div>
+
+  <div class="top">
+    <div class="title"><h1>Mon étagère</h1><span id="d-sub">Coucher de soleil sur les collines</span></div>
+    <div class="tag"><b id="total">235 g</b><small>en réserve</small></div>
+  </div>
+
+  <div class="bottom">
+    <div class="sheet" id="sheet" hidden>
+      <header>
+        <div><h2 id="s-name">Mango</h2><div class="meta" id="s-meta">Récolté le 23/07</div></div>
+        <div class="g" id="s-g">65 g</div>
+      </header>
+      <div class="row">
+        <button class="px" data-take="0.5" type="button">−0,5 g</button>
+        <button class="px main" data-take="1" type="button">−1 g</button>
+        <button class="px" data-take="2" type="button">−2 g</button>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span class="meta" id="s-log">Touche un bouton pour retirer.</span>
+        <button class="close" id="s-close" type="button">Fermer</button>
+      </div>
+    </div>
+    <div class="bar" role="group" aria-label="Moment de la journée">
+      <span>Fenêtre</span>
+      <button type="button" data-mode="sunset" aria-pressed="true">Coucher de soleil</button>
+      <button type="button" data-mode="night">Nuit</button>
+    </div>
+    <div class="bar" role="group" aria-label="Taille des pixels">
+      <span>Pixels</span>
+      <button type="button" data-pix="2">×2</button>
+      <button type="button" data-pix="3">×3</button>
+      <button type="button" data-pix="4" aria-pressed="true">×4</button>
+      <button type="button" data-pix="6">×6</button>
+      <button type="button" data-pix="1">Lisse</button>
+    </div>
+    <div class="hint" id="hint">Glisse pour tourner, touche un bocal.</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  if (!window.THREE) {
+    document.querySelector('.app').insertAdjacentHTML('beforeend', '<div class="fallback">Three.js n’a pas pu se charger. Recharge la page.</div>');
+    return;
+  }
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const CAPACITY = 80;
+  // each jar tries a different label treatment
+  const GRAIN = { s: 1, q: true };
+  const JARS = [
+    { id: 1, name: 'Mwhs',  date: '13/07', g: 75, lid: 0x79a67e, k: 'G', grain: GRAIN, slot: [0.0, 2.35] },
+    { id: 2, name: 'Mango', date: '23/07', g: 65, lid: 0xe2a04c, k: 'G', grain: GRAIN, slot: [0.98, 2.35] },
+    { id: 3, name: 'Mango', date: '10/04', g: 40, lid: 0xe2a04c, k: 'G', grain: GRAIN, slot: [1.96, 2.35] },
+    { id: 4, name: 'Liver', date: '10/04', g: 55, lid: 0xb07d9c, k: 'P', grain: GRAIN, slot: [0.0, 0.95] },
+    { id: 5, name: 'Vide', date: '', g: 0, lid: 0xd9cfa8, k: 'G', empty: true, grain: GRAIN, slot: [0.98, 0.95] },
+    { id: 6, name: 'Vide', date: '', g: 0, lid: 0xd9cfa8, k: 'G', empty: true, grain: GRAIN, slot: [1.96, 0.95] }
+  ];
+  const BUD_COLORS = {
+    G: [0x3f7a2c, 0x4c8a33, 0x5e9c3c, 0x6fae46, 0x9fd15a],
+    P: [0x4a2f68, 0x5d3d82, 0x6a4790, 0x7d58a6, 0xb394d6]
+  };
+  function mulberry32(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  const fmt = (n) => String(n).replace('.', ',');
+
+  // ---------- engine ----------
+  const canvas = document.getElementById('c');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+  renderer.setPixelRatio(1);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 60);
+  let pix = 4;
+  const ramp = new THREE.DataTexture(new Uint8Array([70, 150, 255]), 3, 1, THREE.LuminanceFormat);
+  ramp.minFilter = ramp.magFilter = THREE.NearestFilter; ramp.needsUpdate = true;
+  const toon = (c) => new THREE.MeshToonMaterial({ color: c, gradientMap: ramp });
+  const basic = (c, o) => new THREE.MeshBasicMaterial(Object.assign({ color: c }, o || {}));
+  function box(parent, w, h, d, mat, x, y, z) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), typeof mat === 'number' ? toon(mat) : mat);
+    m.position.set(x, y, z); parent.add(m); return m;
+  }
+  function flatShape(parent, pts, color, z) {
+    const sh = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y)));
+    const m = new THREE.Mesh(new THREE.ShapeGeometry(sh), basic(color)); m.position.z = z; parent.add(m); return m;
+  }
+
+  // ---------- screw-top jar ----------
+  const glassMat = new THREE.MeshPhongMaterial({ color: 0xcfe8e2, transparent: true, opacity: 0.2, shininess: 90, specular: 0xffffff, side: THREE.DoubleSide, depthWrite: false });
+  const jarGeo = new THREE.LatheGeometry([[0, 0], [0.36, 0], [0.4, 0.04], [0.4, 0.86], [0.36, 0.93], [0.31, 0.97], [0.31, 1.06]].map(([x, y]) => new THREE.Vector2(x, y)), 18);
+  const JAR_R = 0.33, JAR_TOP = 0.9;
+  const budGeo = new THREE.IcosahedronGeometry(1, 0), pistilGeo = new THREE.BoxGeometry(1, 1, 1);
+  const budMat = toon(0xffffff), pistilMat = basic(0xec8a35);
+  const labelsEl = document.getElementById('labels');
+  let root = null, pickables = [];
+
+  // Masking-tape label painted at half resolution, then snapped to a 4-colour
+  // palette with no anti-aliasing, so it reads as pixel art next to the scene.
+  const TAPE_W = 64, TAPE_H = 27, TAPE_SCALE = 2;
+  const TAPE_PAL = [[239, 228, 196], [214, 198, 156], [42, 22, 16], [120, 84, 52]];
+  function paintTape(j) {
+    const cv = j.view.el;
+    const x = cv.getContext('2d');
+    // drawn in a 64 x 27 layout, at whatever resolution this jar's grain asks for
+    const k = cv.width / TAPE_W;
+    x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, cv.width, cv.height);
+    x.save(); x.scale(k, k);
+    x.translate(TAPE_W / 2, TAPE_H / 2); x.rotate(-0.05); x.translate(-TAPE_W / 2, -TAPE_H / 2);
+    // torn ends
+    x.beginPath(); x.moveTo(3, 3);
+    for (let i = 0; i <= 4; i++) x.lineTo(i % 2 ? 3 : 5, 3 + i * 5);
+    x.lineTo(TAPE_W - 4, TAPE_H - 3);
+    for (let i = 4; i >= 0; i--) x.lineTo(TAPE_W - (i % 2 ? 2 : 5), 3 + i * 5);
+    x.closePath(); x.fillStyle = 'rgb(239,228,196)'; x.fill();
+    x.fillStyle = 'rgb(214,198,156)'; x.fillRect(4, 3, TAPE_W - 8, 1); x.fillRect(4, TAPE_H - 4, TAPE_W - 8, 1);
+    x.fillStyle = 'rgb(42,22,16)'; x.textBaseline = 'alphabetic';
+    x.font = '600 10px "Pixelify Sans", monospace'; x.fillText(j.empty ? 'Bocal vide' : j.name, 7, 12);
+    x.font = '15px "Jersey 10", monospace'; x.fillText(j.empty ? '0 g' : fmt(j.g) + ' g', 7, 22);
+    if (j.date) { x.fillStyle = 'rgb(120,84,52)'; x.font = '8px "Pixelify Sans", monospace'; x.textAlign = 'right'; x.fillText(j.date, TAPE_W - 8, 21); }
+    x.restore();
+    if (!j.grain.q) return;
+    const img = x.getImageData(0, 0, cv.width, cv.height), d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 110) { d[i + 3] = 0; continue; }
+      let best = 0, bd = 1e9;
+      TAPE_PAL.forEach((c, k) => { const dd = (d[i] - c[0]) ** 2 + (d[i + 1] - c[1]) ** 2 + (d[i + 2] - c[2]) ** 2; if (dd < bd) { bd = dd; best = k; } });
+      d[i] = TAPE_PAL[best][0]; d[i + 1] = TAPE_PAL[best][1]; d[i + 2] = TAPE_PAL[best][2]; d[i + 3] = best < 2 ? 235 : 255;
+    }
+    x.putImageData(img, 0, 0);
+  }
+
+  function buildJar(j) {
+    const g = new THREE.Group();
+    g.position.set(j.slot[0], j.slot[1], 0.35);
+    const glass = new THREE.Mesh(jarGeo, glassMat); glass.renderOrder = 2; g.add(glass);
+    const lidG = new THREE.Group(); g.add(lidG);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.335, 0.335, 0.13, 18), toon(j.lid)); band.position.y = 1.08; lidG.add(band);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.335, 0.018, 3, 18), toon(0xc9a24a)); rim.rotation.x = Math.PI / 2; rim.position.y = 1.02; lidG.add(rim);
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.27, 0.03, 18), toon(j.lid)); disc.position.y = 1.155; lidG.add(disc);
+    [0.99, 1.02].forEach((y) => { const t = new THREE.Mesh(new THREE.TorusGeometry(0.315, 0.01, 3, 18), basic(0xdff2ec, { transparent: true, opacity: 0.45 })); t.rotation.x = Math.PI / 2; t.position.y = y; g.add(t); });
+    const shine = new THREE.Mesh(new THREE.PlaneGeometry(0.035, 0.55), basic(0xffffff, { transparent: true, opacity: 0.45, depthWrite: false }));
+    shine.position.set(-0.22, 0.48, 0.35); shine.rotation.y = -0.6; shine.renderOrder = 3; g.add(shine);
+
+    const rnd = mulberry32(j.id * 2654435761), buds = [];
+    for (let y = 0.07; y < JAR_TOP + 0.06; y += 0.07) for (let i = 0; i < 11; i++) {
+      const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * (JAR_R - 0.04);
+      buds.push({ x: Math.cos(a) * r, y: y + rnd() * 0.03, z: Math.sin(a) * r, s: 0.06 + rnd() * 0.035, rx: rnd() * 6, ry: rnd() * 6, c: BUD_COLORS[j.k][Math.floor(rnd() * 4)], frost: rnd() < 0.15 });
+    }
+    buds.sort((a, b) => a.y - b.y);
+    const inst = new THREE.InstancedMesh(budGeo, budMat, buds.length), pist = new THREE.InstancedMesh(pistilGeo, pistilMat, buds.length);
+    const col = new THREE.Color();
+    buds.forEach((b, i) => inst.setColorAt(i, col.setHex(b.frost ? BUD_COLORS[j.k][4] : b.c)));
+    g.add(inst, pist);
+
+    // label: pixel tape on the glass
+    const el = document.createElement('canvas'); el.className = 'lbl';
+    el.width = Math.round(TAPE_W * TAPE_SCALE / j.grain.s); el.height = Math.round(TAPE_H * TAPE_SCALE / j.grain.s);
+    el.style.width = TAPE_W * TAPE_SCALE + 'px'; el.style.height = TAPE_H * TAPE_SCALE + 'px';
+    labelsEl.appendChild(el);
+    const anchor = [0, 0.66, 0.41];
+    root.add(g);
+    glass.userData.jar = j; pickables.push(glass);
+    j.view = { group: g, lidG, buds, inst, pist, el, baseY: j.slot[1], lift: 0, anchor: new THREE.Vector3().fromArray(anchor) };
+    settleBuds(j.view);
+    setFill(j); refreshLabel(j);
+  }
+  const mtx = new THREE.Object3D();
+  function placeBud(v, i, x, y, z, spin, k) {
+    const b = v.buds[i];
+    mtx.position.set(x, y, z); mtx.rotation.set(b.rx + spin, b.ry + spin * 0.7, 0); mtx.scale.set(b.s * k, b.s * 1.25 * k, b.s * k); mtx.updateMatrix();
+    v.inst.setMatrixAt(i, mtx.matrix);
+    mtx.position.set(x + Math.cos(b.ry) * b.s * 0.9, y + b.s * 0.5, z + Math.sin(b.ry) * b.s * 0.9);
+    mtx.rotation.set(0, 0, 0); mtx.scale.setScalar(0.018 * k); mtx.updateMatrix(); v.pist.setMatrixAt(i, mtx.matrix);
+  }
+  function settleBuds(v) {
+    v.buds.forEach((b, i) => placeBud(v, i, b.x, b.y, b.z, 0, 1));
+    v.inst.instanceMatrix.needsUpdate = true; v.pist.instanceMatrix.needsUpdate = true;
+    v.lidG.visible = true; v.lidG.position.y = 0; v.lidG.rotation.y = 0; v.el.style.opacity = '';
+  }
+  // Drop-in on page load: buds fall through the open neck one after another and
+  // bounce into place, then the lid comes down and screws shut.
+  const BUD_STEP_MS = 13, BUD_MS = 420, LID_MS = 500;
+  function bounce(p) {
+    const n = 7.5625, d = 2.75;
+    if (p < 1 / d) return n * p * p;
+    if (p < 2 / d) return n * (p -= 1.5 / d) * p + 0.75;
+    if (p < 2.5 / d) return n * (p -= 2.25 / d) * p + 0.9375;
+    return n * (p -= 2.625 / d) * p + 0.984375;
+  }
+  function animateDrop(v, e) {
+    const n = v.inst.count, step = BUD_STEP_MS;
+    for (let i = 0; i < n; i++) {
+      const b = v.buds[i], p = Math.min(1, Math.max(0, (e - i * step) / BUD_MS));
+      if (p <= 0) { placeBud(v, i, 0, 1.15, 0, 0, 0); continue; }
+      const sy = 1.12 + (i % 3) * 0.02, q = bounce(p);
+      placeBud(v, i, b.x * (0.25 + 0.75 * Math.min(1, p * 1.6)), sy + (b.y - sy) * q, b.z * (0.25 + 0.75 * Math.min(1, p * 1.6)), (1 - p) * 5, 1);
+    }
+    v.inst.instanceMatrix.needsUpdate = true; v.pist.instanceMatrix.needsUpdate = true;
+    const fallEnd = (n ? (n - 1) * step : 0) + BUD_MS;
+    const q = Math.min(1, Math.max(0, (e - fallEnd) / LID_MS)), ease = 1 - Math.pow(1 - q, 3);
+    v.lidG.visible = q > 0; v.lidG.position.y = 0.1 * (1 - ease); v.lidG.rotation.y = (1 - ease) * 6;
+    v.el.style.opacity = String(q);
+    return q >= 1;
+  }
+  function setFill(j) {
+    const v = j.view, level = 0.05 + Math.min(1, j.g / CAPACITY) * (JAR_TOP - 0.05);
+    let n = 0; while (n < v.buds.length && v.buds[n].y <= level) n++;
+    if (j.g <= 0) n = 0;
+    v.inst.count = n; v.pist.count = n;
+  }
+  function refreshLabel(j) { paintTape(j); }
+  function updateTotal() { document.getElementById('total').textContent = fmt(JARS.reduce((a, j) => a + j.g, 0)) + ' g'; }
+
+  // ---------- black cat ----------
+  // Built from squashed low-poly spheres rather than boxes: at this resolution
+  // they read as a soft silhouette instead of a stack of crates.
+  let catRef = null;
+  const blobGeo = new THREE.SphereGeometry(1, 10, 8);
+  function blob(parent, sx, sy, sz, x, y, z, mat) { const m = new THREE.Mesh(blobGeo, mat); m.scale.set(sx, sy, sz); m.position.set(x, y, z); parent.add(m); return m; }
+  function makeCat(parent, x, y, z) {
+    const C = new THREE.Group(); C.position.set(x, y, z); C.rotation.y = Math.PI / 2;
+    const fur = toon(0x1a141c);
+    blob(C, 0.16, 0.15, 0.19, 0, 0.14, 0.06, fur);                       // haunches
+    const chest = blob(C, 0.11, 0.13, 0.1, 0, 0.24, -0.08, fur); chest.rotation.x = -0.35;
+    [-1, 1].forEach((sd) => {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.032, 0.17, 6), fur); leg.position.set(sd * 0.045, 0.085, -0.13); C.add(leg);
+      blob(C, 0.036, 0.022, 0.045, sd * 0.045, 0.02, -0.14, fur);       // paws
+      blob(C, 0.05, 0.03, 0.09, sd * 0.11, 0.03, 0.07, fur);            // tucked back feet
+    });
+    const head = new THREE.Group(); head.position.set(0, 0.39, -0.11); head.rotation.y = 1.3; C.add(head);
+    blob(head, 0.115, 0.1, 0.105, 0, 0, 0, fur);
+    blob(head, 0.125, 0.065, 0.085, 0, -0.035, -0.015, fur);            // cheeks
+    blob(head, 0.045, 0.03, 0.03, 0, -0.045, -0.085, toon(0x2a222c));   // muzzle
+    const nose = new THREE.Mesh(new THREE.CircleGeometry(0.013, 3), basic(0xd98a9a)); nose.rotation.set(0, Math.PI, Math.PI / 2); nose.position.set(0, -0.025, -0.112); head.add(nose);
+    const eyes = new THREE.Group(); head.add(eyes);
+    [-1, 1].forEach((sd) => {
+      const ear = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.085, 4), fur); ear.position.set(sd * 0.068, 0.095, 0.005); ear.rotation.set(0, Math.PI / 4, -sd * 0.28); head.add(ear);
+      const inner = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.045, 4), toon(0x3a2430)); inner.position.set(sd * 0.068, 0.088, -0.03); inner.rotation.set(0, Math.PI / 4, -sd * 0.28); head.add(inner);
+      const eye = new THREE.Mesh(new THREE.CircleGeometry(0.03, 10), basic(0xffd34d)); eye.rotation.y = Math.PI; eye.position.set(sd * 0.046, 0.012, -0.1); eyes.add(eye);
+      const pupil = new THREE.Mesh(new THREE.PlaneGeometry(0.012, 0.042), basic(0x0c090c)); pupil.rotation.y = Math.PI; pupil.position.set(sd * 0.046, 0.012, -0.102); eyes.add(pupil);
+      const glint = new THREE.Mesh(new THREE.PlaneGeometry(0.01, 0.01), basic(0xfff6d8)); glint.rotation.y = Math.PI; glint.position.set(sd * 0.046 + 0.012, 0.024, -0.103); eyes.add(glint);
+    });
+    // tail: a chain of beads hanging over the shelf edge
+    const tail = new THREE.Group(); tail.position.set(-0.2, 0.05, 0.12); C.add(tail);
+    let seg = tail;
+    for (let i = 0; i < 6; i++) { const sg = new THREE.Group(); sg.position.y = i ? -0.075 : 0; sg.rotation.x = i ? 0.12 : 0; seg.add(sg); blob(sg, 0.03, 0.045, 0.03, 0, -0.035, 0, fur); seg = sg; }
+    parent.add(C);
+    return { tail, eyes, chest };
+  }
+
+  // ---------- the plant ----------
+  function makeLeaf(scale, color) {
+    const leaf = new THREE.Group(), mat = new THREE.MeshToonMaterial({ color, gradientMap: ramp, side: THREE.DoubleSide });
+    [[-1.3, 0.45], [-0.85, 0.68], [-0.42, 0.88], [0, 1], [0.42, 0.88], [0.85, 0.68], [1.3, 0.45]].forEach(([a, l]) => {
+      const len = 0.42 * l * scale;
+      const w = 0.045 * scale;
+      const lf = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(w, len * 0.4), new THREE.Vector2(0, len), new THREE.Vector2(-w, len * 0.4)])), mat);
+      const piv = new THREE.Group(); piv.rotation.z = a; piv.add(lf); leaf.add(piv);
+    });
+    return leaf;
+  }
+  function makePlant(parent, x, y, z) {
+    const P = new THREE.Group(); P.position.set(x, y, z);
+    const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.34, 0.6, 12), toon(0x3a3438)); pot.position.y = 0.3; P.add(pot);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.41, 0.03, 4, 12), toon(0x4a4448)); rim.rotation.x = Math.PI / 2; rim.position.y = 0.6; P.add(rim);
+    const soil = new THREE.Mesh(new THREE.CylinderGeometry(0.39, 0.39, 0.02, 12), toon(0x2a1a10)); soil.position.y = 0.58; P.add(soil);
+    const stemH = 2.0;
+    // stem: thin, darker, and kinked a little at each node instead of one straight pole
+    const stemMat = toon(0x40602a), up = new THREE.Vector3(0, 1, 0);
+    let prev = new THREE.Vector3(0, 0.58, 0);
+    for (let k = 1; k <= 9; k++) {
+      const next = new THREE.Vector3(k === 9 ? 0 : (k % 2 ? 0.03 : -0.03), 0.58 + k * stemH / 9, 0);
+      const dir = next.clone().sub(prev), len = dir.length();
+      const r0 = 0.03 * (1 - (k - 1) / 9) + 0.004, r1 = 0.03 * (1 - k / 9) + 0.004;
+      const seg = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, len, 5), stemMat);
+      seg.position.copy(prev).addScaledVector(dir, 0.5); seg.quaternion.setFromUnitVectors(up, dir.normalize()); P.add(seg);
+      prev = next;
+    }
+    const rnd = mulberry32(42), leafCols = [0x3f7a2c, 0x4c8a33, 0x2f6324];
+    const budC = BUD_COLORS.G;
+    function budCluster(at, count, spread, size) {
+      for (let i = 0; i < count; i++) {
+        const b = new THREE.Mesh(budGeo, toon(budC[Math.floor(rnd() * 5)]));
+        b.position.set(at.x + (rnd() - 0.5) * spread, at.y + rnd() * spread * 1.6, at.z + (rnd() - 0.5) * spread);
+        b.scale.set(size, size * 1.3, size); b.rotation.set(rnd() * 6, rnd() * 6, 0); P.add(b);
+        if (rnd() < 0.6) { const p = new THREE.Mesh(pistilGeo, pistilMat); p.scale.setScalar(0.02); p.position.copy(b.position).add(new THREE.Vector3(size * 0.8, size * 0.5, 0)); P.add(p); }
+      }
+    }
+    const NODES = 8;
+    for (let i = 0; i < NODES; i++) {
+      const y0 = 0.72 + i * 0.235, a = i * 2.4, len = 0.62 - i * 0.06;
+      const br = new THREE.Group(); br.position.y = y0; br.rotation.y = a; P.add(br);
+      const tilt = 0.75;
+      const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, len, 5), toon(0x4a6e30));
+      stick.rotation.z = -tilt; stick.position.set(Math.sin(tilt) * len / 2, Math.cos(tilt) * len / 2, 0); br.add(stick);
+      const tip = new THREE.Vector3(Math.sin(tilt) * len, Math.cos(tilt) * len, 0);
+      // fan leaf drooping off the branch tip
+      const holder = new THREE.Group(); holder.position.copy(tip); holder.rotation.set(0, 0, -1.1); br.add(holder);
+      const leaf = makeLeaf(1.4 - i * 0.08, leafCols[i % 3]); leaf.rotation.x = -1.0; holder.add(leaf);
+      // second leaf straight off the stem, opposite side
+      const h2 = new THREE.Group(); h2.position.y = 0.05; h2.rotation.set(0, Math.PI, -1.25); br.add(h2);
+      const leaf2 = makeLeaf(1.1 - i * 0.06, leafCols[(i + 1) % 3]); leaf2.rotation.x = -0.9; h2.add(leaf2);
+      // small bud site at the tip
+      const w = tip.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), a).add(new THREE.Vector3(0, y0, 0));
+      budCluster(w, 3 + (i % 3), 0.1, 0.05);
+    }
+    // main cola: fat at the base, narrowing to a point, with sugar leaves poking out
+    const topY = 0.6 + stemH;
+    for (let i = 0; i < 22; i++) {
+      const f = i / 21, y = topY - 0.6 + f * 0.62, rad = 0.13 * (1 - f) + 0.02, a = i * 2.3;
+      const b = new THREE.Mesh(budGeo, toon(budC[Math.floor(rnd() * 5)]));
+      const sz = 0.07 * (1 - f * 0.6);
+      b.position.set(Math.cos(a) * rad * rnd(), y, Math.sin(a) * rad * rnd()); b.scale.set(sz, sz * 1.3, sz); b.rotation.set(rnd() * 6, rnd() * 6, 0); P.add(b);
+      if (rnd() < 0.7) { const pp = new THREE.Mesh(pistilGeo, pistilMat); pp.scale.setScalar(0.02); pp.position.copy(b.position).add(new THREE.Vector3(sz * 0.8, sz * 0.6, 0)); P.add(pp); }
+    }
+    [0, 2.1, 4.2].forEach((a, i) => {
+      const h = new THREE.Group(); h.position.y = topY - 0.35 + i * 0.12; h.rotation.set(0, a, -0.5); P.add(h);
+      const sl = makeLeaf(0.45, leafCols[1]); sl.rotation.x = -0.4; h.add(sl);
+    });
+    parent.add(P);
+    return P;
+  }
+
+  // ---------- room ----------
+  function buildRoom(mode) {
+    const sunset = mode === 'sunset';
+    scene.background = new THREE.Color(sunset ? 0x24162a : 0x0f1222);
+    root.add(new THREE.AmbientLight(sunset ? 0x7a5a7a : 0x5a6290, sunset ? 0.55 : 0.6));
+    const key = new THREE.DirectionalLight(sunset ? 0xff9a5a : 0x9fb4ff, sunset ? 0.85 : 0.55); key.position.set(-5, 2.2, 3); root.add(key);
+    const lamp = new THREE.PointLight(0xffc37a, sunset ? 0.8 : 1.3, 6, 1.6); lamp.position.set(1.6, 3.1, 1.2); root.add(lamp);
+
+    box(root, 9, 6, 0.1, sunset ? 0x3a2c44 : 0x2b2a44, 0.4, 1.8, -0.05);
+    for (let x = -3.8; x < 4.6; x += 0.6) box(root, 0.06, 6, 0.02, sunset ? 0x33263c : 0x25243c, x, 1.8, 0.01);
+    box(root, 9, 0.1, 4, 0x3a2b34, 0.4, -0.45, 1.8);
+    box(root, 9, 0.18, 0.06, 0x1d1c30, 0.4, -0.31, 0.03);
+    box(root, 2.2, 0.02, 1.2, 0x7a3a3a, 1.1, -0.39, 1.4);
+    box(root, 2.0, 0.025, 1.0, 0x9a5a48, 1.1, -0.385, 1.4);
+
+    // window and the view through it
+    const wx = -1.65, wy = 2.0, W = 1.3, H = 1.7, L = wx - W / 2, B = wy - H / 2;
+    const view = new THREE.Group(); root.add(view);
+    const bands = sunset ? [0x3b2a5c, 0x7a3a6e, 0xc4507a, 0xf08a4b, 0xffc46a] : [0x0d1230, 0x141a40, 0x1d2a5a, 0x26346a, 0x2e3e78];
+    bands.forEach((c, i) => box(view, W, H / bands.length + 0.002, 0.01, basic(c), wx, wy + H / 2 - (i + 0.5) * H / bands.length, 0.02));
+    const sr = mulberry32(3);
+    if (sunset) {
+      const sun = new THREE.Mesh(new THREE.CircleGeometry(0.24, 16), basic(0xffe08a)); sun.position.set(wx + 0.22, B + 0.45, 0.026); view.add(sun);
+      [[0.35, 0.55, 0.5], [-0.3, 0.3, 0.38], [0.1, 0.72, 0.3]].forEach(([dx, dy, w]) => box(view, w, 0.035, 0.005, basic(0xff9fa0), wx + dx, wy + dy, 0.028));
+    } else {
+      const moon = new THREE.Mesh(new THREE.CircleGeometry(0.15, 12), basic(0xf4f1dc)); moon.position.set(wx + 0.3, wy + 0.5, 0.026); view.add(moon);
+      for (let i = 0; i < 16; i++) box(view, 0.02, 0.02, 0.005, basic(0xdfe6ff), L + 0.05 + sr() * (W - 0.1), wy + sr() * 0.8, 0.027);
+    }
+    // two layers of hills, a few pines, a farmhouse
+    const far = [[L, B + 0.42]]; for (let i = 0; i <= 8; i++) far.push([L + i * W / 8, B + 0.38 + Math.sin(i * 1.3) * 0.08 + 0.05]); far.push([L + W, B], [L, B]);
+    flatShape(view, far, sunset ? 0x8a3f6a : 0x1a1f3c, 0.03);
+    const near = [[L, B + 0.22]]; for (let i = 0; i <= 8; i++) near.push([L + i * W / 8, B + 0.2 + Math.cos(i * 0.9) * 0.07]); near.push([L + W, B], [L, B]);
+    flatShape(view, near, sunset ? 0x3a1f40 : 0x0e1128, 0.032);
+    [0.12, 0.2, 0.95, 1.05, 1.13].forEach((dx, i) => { const h = 0.16 + (i % 2) * 0.06, bx = L + dx, by = B + 0.2 + Math.cos((dx / W * 8) * 0.9) * 0.06; flatShape(view, [[bx - 0.05, by], [bx + 0.05, by], [bx, by + h]], sunset ? 0x2a1630 : 0x0a0c1e, 0.034); });
+    box(view, 0.1, 0.07, 0.005, basic(sunset ? 0x2a1630 : 0x0a0c1e), L + 0.62, B + 0.31, 0.034);
+    box(view, 0.025, 0.025, 0.005, basic(0xffd27a), L + 0.62, B + 0.31, 0.036);
+    const frame = 0x5a3422;
+    box(root, W + 0.16, 0.1, 0.12, frame, wx, wy + H / 2 + 0.03, 0.06); box(root, W + 0.16, 0.1, 0.12, frame, wx, wy - H / 2 - 0.03, 0.06);
+    box(root, 0.1, H + 0.16, 0.12, frame, L - 0.03, wy, 0.06); box(root, 0.1, H + 0.16, 0.12, frame, L + W + 0.03, wy, 0.06);
+    box(root, 0.06, H, 0.08, frame, wx, wy, 0.05); box(root, W, 0.06, 0.08, frame, wx, wy + 0.1, 0.05);
+    box(root, W + 0.3, 0.08, 0.5, 0x8a5434, wx, B - 0.1, 0.25);
+    const cpot2 = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.09, 0.18, 10), toon(0xc4614a)); cpot2.position.set(wx - 0.3, B + 0.03, 0.25); root.add(cpot2);
+    const cac2 = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.28, 8), toon(0x5e9c5a)); cac2.position.set(wx - 0.3, B + 0.25, 0.25); root.add(cac2);
+    const beam = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.7), basic(sunset ? 0xffa060 : 0x9fb4ff, { transparent: true, opacity: sunset ? 0.16 : 0.12, depthWrite: false }));
+    beam.rotation.x = -Math.PI / 2; beam.position.set(-1.1, -0.38, 1.1); root.add(beam);
+
+    // shelves
+    const sx = 1.25;
+    [0.9, 2.3].forEach((y) => {
+      box(root, 3.7, 0.1, 0.7, 0x8a5434, sx, y, 0.35);
+      box(root, 3.7, 0.025, 0.025, 0xb5723f, sx, y + 0.05, 0.7);
+      box(root, 0.06, 0.25, 0.06, 0x1a1214, sx - 1.5, y - 0.15, 0.08); box(root, 0.06, 0.25, 0.06, 0x1a1214, sx + 1.5, y - 0.15, 0.08);
+    });
+    // small cactus up top, books and a grinder below
+    catRef = makeCat(root, 2.78, 2.35, 0.5);
+    [[0x6fa3c7, 0.42], [0xc4614a, 0.36], [0xd9cfa8, 0.4]].forEach(([c, h], i) => box(root, 0.1, h, 0.45, c, 2.72 + i * 0.12, 0.95 + h / 2, 0.35));
+    const lean = box(root, 0.1, 0.38, 0.45, 0x79a67e, 3.0, 1.13, 0.35); lean.rotation.z = -0.35;
+    const grinder = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.14, 12), toon(0x9aa0a8)); grinder.position.set(2.55, 1.02, 0.55); root.add(grinder);
+
+    makePlant(root, 3.3, -0.4, 1.2);
+    return sunset;
+  }
+
+  // ---------- dust ----------
+  const DN = 70, dustPos = new Float32Array(DN * 3), dr = mulberry32(7);
+  for (let i = 0; i < DN; i++) { dustPos[i * 3] = -0.9 + dr() * 3.2; dustPos[i * 3 + 1] = 0.1 + dr() * 3.2; dustPos[i * 3 + 2] = dr() * 1.3; }
+  const dustGeo = new THREE.BufferGeometry(); dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+  const dustMat = new THREE.PointsMaterial({ color: 0xffe6b0, size: 1, sizeAttenuation: false, transparent: true, opacity: 0.6 });
+  const dust = new THREE.Points(dustGeo, dustMat);
+
+  let firstLoad = true;
+  function load(mode) {
+    if (root) scene.remove(root);
+    labelsEl.textContent = ''; pickables = []; closeSheet();
+    root = new THREE.Group(); scene.add(root);
+    const sunset = buildRoom(mode);
+    dustMat.color.setHex(sunset ? 0xffc890 : 0xdfe6ff);
+    root.add(dust);
+    JARS.forEach(buildJar);
+    if (firstLoad && !reduceMotion) { const now = performance.now(); JARS.forEach((j, i) => { j.view.dropAt = now + 500 + i * 280; animateDrop(j.view, -1); }); }
+    firstLoad = false;
+    document.getElementById('d-sub').textContent = sunset ? 'Coucher de soleil sur les collines' : 'Nuit sur les collines';
+  }
+
+  // ---------- camera ----------
+  const target = new THREE.Vector3(0.95, 1.6, 0.45), HALF_W = 2.25, HALF_H = 1.65, YAW0 = -0.06;
+  let yaw = YAW0, pitch = 0.08, yawT = yaw, pitchT = pitch, dist = 8;
+  function fit() { const t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)); dist = Math.max(HALF_H / t, HALF_W / (t * camera.aspect)) + 0.9; }
+  function placeCamera() { camera.position.set(target.x + Math.sin(yaw) * Math.cos(pitch) * dist, target.y + Math.sin(pitch) * dist, target.z + Math.cos(yaw) * Math.cos(pitch) * dist); camera.lookAt(target); }
+  function resize() {
+    const w = canvas.clientWidth || window.innerWidth, h = canvas.clientHeight || window.innerHeight;
+    renderer.setSize(Math.max(1, Math.floor(w / pix)), Math.max(1, Math.floor(h / pix)), false);
+    camera.aspect = w / h; fit(); camera.updateProjectionMatrix();
+  }
+
+  // ---------- pointer ----------
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  let down = null, hovered = null, lastInput = 0;
+  function pick(e) {
+    const r = canvas.getBoundingClientRect();
+    ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    const hit = ray.intersectObjects(pickables, false)[0];
+    return hit ? hit.object.userData.jar : null;
+  }
+  canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, yaw: yawT, pitch: pitchT, moved: false }; canvas.setPointerCapture(e.pointerId); lastInput = performance.now(); });
+  canvas.addEventListener('pointermove', (e) => {
+    if (down) {
+      const dx = e.clientX - down.x, dy = e.clientY - down.y;
+      if (Math.abs(dx) + Math.abs(dy) > 6) { down.moved = true; canvas.classList.add('dragging'); }
+      yawT = THREE.MathUtils.clamp(down.yaw - dx * 0.006, YAW0 - 0.3, YAW0 + 0.3);
+      pitchT = THREE.MathUtils.clamp(down.pitch + dy * 0.003, 0, 0.22);
+      lastInput = performance.now();
+    } else { hovered = pick(e); canvas.classList.toggle('hover', !!hovered); }
+  });
+  canvas.addEventListener('pointerup', (e) => {
+    canvas.classList.remove('dragging');
+    if (down && !down.moved) { const j = pick(e); if (j) openSheet(j); }
+    down = null;
+  });
+
+  // ---------- sheet ----------
+  const sheet = document.getElementById('sheet'); let current = null;
+  function renderSheet(msg) {
+    document.getElementById('s-name').textContent = current.empty ? 'Bocal vide' : current.name;
+    document.getElementById('s-meta').textContent = (current.empty ? 'Prêt pour la prochaine récolte' : 'Récolté le ' + current.date) + ', rempli à ' + Math.min(100, Math.round(current.g / CAPACITY * 100)) + ' %';
+    document.getElementById('s-g').textContent = fmt(current.g) + ' g';
+    document.getElementById('s-log').textContent = msg || 'Touche un bouton pour retirer.';
+  }
+  function openSheet(j) { current = j; sheet.hidden = false; document.getElementById('hint').hidden = true; renderSheet(); }
+  function closeSheet() { sheet.hidden = true; current = null; document.getElementById('hint').hidden = false; }
+  document.getElementById('s-close').addEventListener('click', closeSheet);
+  sheet.querySelectorAll('[data-take]').forEach((b) => b.addEventListener('click', () => {
+    if (!current) return;
+    const n = Number(b.dataset.take);
+    if (current.g <= 0) { renderSheet(current.empty ? 'Ce bocal attend sa prochaine récolte.' : 'Ce bocal est déjà vide.'); return; }
+    if (current.view.dropAt != null) { current.view.dropAt = null; settleBuds(current.view); }
+    current.g = Math.max(0, Math.round((current.g - n) * 10) / 10);
+    setFill(current); refreshLabel(current); updateTotal();
+    renderSheet('−' + fmt(n) + ' g retiré. Il reste ' + fmt(current.g) + ' g.');
+  }));
+
+  const press = (sel, b) => document.querySelectorAll(sel).forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+  document.querySelectorAll('[data-pix]').forEach((b) => b.addEventListener('click', () => { pix = Number(b.dataset.pix); press('[data-pix]', b); resize(); }));
+  document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => { press('[data-mode]', b); load(b.dataset.mode); }));
+
+  window.addEventListener('resize', resize);
+  load('sunset'); resize(); updateTotal();
+  // the slate label is drawn on a canvas: redraw it once the pixel fonts arrive
+  if (document.fonts) Promise.all([document.fonts.load('600 13px "Pixelify Sans"'), document.fonts.load('22px "Jersey 10"')]).then(() => JARS.forEach(paintTape)).catch(() => {});
+
+  // ---------- loop ----------
+  const clock = new THREE.Clock(), tmp = new THREE.Vector3();
+  function tick() {
+    const t = clock.getElapsedTime();
+    yaw += (yawT - yaw) * 0.15; pitch += (pitchT - pitch) * 0.15;
+    if (Math.abs(yawT - yaw) < 0.0005) yaw = yawT; if (Math.abs(pitchT - pitch) < 0.0005) pitch = pitchT;
+    placeCamera();
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    JARS.forEach((j) => {
+      const v = j.view;
+      v.lift = j === current ? 0.06 : 0;
+      v.group.position.y = v.baseY + v.lift;
+      if (v.dropAt != null && animateDrop(v, performance.now() - v.dropAt)) { v.dropAt = null; settleBuds(v); }
+      v.group.updateMatrixWorld();
+      tmp.copy(v.anchor); v.group.localToWorld(tmp); tmp.project(camera);
+      const gs = j.grain.s, lx = Math.round(((tmp.x + 1) / 2 * w - TAPE_W) / gs) * gs, ly = Math.round(((1 - tmp.y) / 2 * h - TAPE_H) / gs) * gs;
+      v.el.style.transform = 'translate(' + lx + 'px,' + ly + 'px)';
+    });
+    if (!reduceMotion && catRef) {
+      catRef.tail.rotation.z = Math.sin(t * 1.3) * 0.25;
+      const bl = (t % 4.3) < 0.14;                                  // slow blink every few seconds
+      catRef.eyes.scale.y = bl ? 0.15 : 1;
+      catRef.chest.scale.y = 0.13 * (1 + Math.sin(t * 2.2) * 0.02); // breathing
+    }
+    if (!reduceMotion) {
+      const p = dust.geometry.attributes.position;
+      for (let i = 0; i < DN; i++) { let y = p.getY(i) + 0.0015; if (y > 3.3) y = 0.1; p.setY(i, y); p.setX(i, p.getX(i) + Math.sin(t + i) * 0.0008); }
+      p.needsUpdate = true;
+    }
+    renderer.render(scene, camera);
+    requestAnimationFrame(tick);
+  }
+  tick();
+})();
+</script>
