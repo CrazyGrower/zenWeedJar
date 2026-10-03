@@ -26,14 +26,17 @@
   const NAME_FONT = '600 10px "Pixelify Sans", monospace';
   const WEIGHT_FONT = '15px "Jersey 10", monospace';
   const DATE_FONT = '8px "Pixelify Sans", monospace';
+  // one notch down, so a decimal weight ("59,4 g") still has room for its date
+  const SMALL_FONTS = [['13px "Jersey 10", monospace', '7px "Pixelify Sans", monospace'],
+    ['12px "Jersey 10", monospace', '7px "Pixelify Sans", monospace']];
   const TEXT_L = 7;
   const TEXT_R = TAPE_W - 8;
   const TEXT_GAP = 3;
 
   // Where the text goes, measured rather than counted: the date sits beside
-  // the weight, moves up beside the name when the weight is too wide (a
-  // "12,5 g" is common since the -0.5 g button), and is dropped when neither
-  // line has room. The name is clipped to the tape, never for the date's sake.
+  // the weight, both a notch smaller when the weight is too wide (a "12,5 g"
+  // is common since the -0.5 g button), then beside the name, and is dropped
+  // only when no line has room. The name is never clipped for the date.
   function layoutTape(lines, measure) {
     let name = String(lines.name);
     if (measure(name, NAME_FONT) > TEXT_R - TEXT_L) {
@@ -41,13 +44,14 @@
       name = `${name.trimEnd()}.`;
     }
     const date = lines.date || '';
-    let dateLine = null;
-    if (date) {
-      const dateL = TEXT_R - measure(date, DATE_FONT) - TEXT_GAP;
-      if (TEXT_L + measure(lines.weight, WEIGHT_FONT) <= dateL) dateLine = 'weight';
-      else if (TEXT_L + measure(name, NAME_FONT) <= dateL) dateLine = 'name';
+    const fits = (left, leftFont, dateFont) => TEXT_L + measure(left, leftFont) + TEXT_GAP + measure(date, dateFont) <= TEXT_R;
+    const out = { name, weight: lines.weight, date, dateLine: null, weightFont: WEIGHT_FONT, dateFont: DATE_FONT };
+    if (!date) return out;
+    for (const [weightFont, dateFont] of [[WEIGHT_FONT, DATE_FONT], ...SMALL_FONTS]) {
+      if (fits(lines.weight, weightFont, dateFont)) return Object.assign(out, { dateLine: 'weight', weightFont, dateFont });
     }
-    return { name, weight: lines.weight, date, dateLine };
+    if (fits(name, NAME_FONT, DATE_FONT)) out.dateLine = 'name';
+    return out;
   }
 
   function createCanvas(doc) {
@@ -78,9 +82,9 @@
     x.fillStyle = 'rgb(42,22,16)'; x.textBaseline = 'alphabetic'; x.textAlign = 'left';
     const l = layoutTape(lines, (text, font) => { x.font = font; return x.measureText(text).width; });
     x.font = NAME_FONT; x.fillText(l.name, TEXT_L, 12);
-    x.font = WEIGHT_FONT; x.fillText(l.weight, TEXT_L, 22);
+    x.font = l.weightFont; x.fillText(l.weight, TEXT_L, 22);
     if (l.dateLine) {
-      x.fillStyle = 'rgb(120,84,52)'; x.font = DATE_FONT; x.textAlign = 'right';
+      x.fillStyle = 'rgb(120,84,52)'; x.font = l.dateFont; x.textAlign = 'right';
       x.fillText(l.date, TEXT_R, l.dateLine === 'name' ? 11 : 21);
     }
     x.restore();
@@ -98,5 +102,5 @@
     return Math.min(1, Math.max(0.5, s));
   }
 
-  global.TapeLabel = { TAPE_W, TAPE_H, CSS_SCALE, PALETTE, quantizeToPalette, createCanvas, layoutTape, paint, tapeScale };
+  global.TapeLabel = { TAPE_W, TAPE_H, CSS_SCALE, PALETTE, quantizeToPalette, createCanvas, layoutTape, paint, tapeScale, WEIGHT_FONT, DATE_FONT };
 })(window);

@@ -259,7 +259,8 @@ test('formatTrend signs the change in ASCII and rounds it', () => {
 
 test('runwayDate is the local day the stash runs out', () => {
   const { runwayDate } = loadApp();
-  assert.equal(runwayDate(10, new Date(2026, 9, 2, 12)), '12/10');
+  assert.equal(runwayDate(10, new Date(2026, 9, 2, 12)), '12/10/2026');
+  assert.equal(runwayDate(188, new Date(2026, 9, 2, 12)), '08/04/2027', 'the year says which April');
   assert.equal(runwayDate(null, new Date(2026, 9, 2, 12)), '');
 });
 

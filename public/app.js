@@ -221,7 +221,8 @@ function runwayDate(days_left, now = new Date()) {
   if (days_left == null) return '';
   const d = new Date(now.getTime() + days_left * DAY_MS);
   const p = (n) => String(n).padStart(2, '0');
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)}`;
+  // with the year: a runway past a year would otherwise not say which April
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
 
 function statsBody(stats, now = new Date()) {
