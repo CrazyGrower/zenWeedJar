@@ -5,10 +5,10 @@
   const M = global.StashModel;
   const T = global.TapeLabel;
   if (!S3 || !M || !T) return;
-  const { THREE, toon, basic, mulberry32, BUD_COLORS, budGeo, pistilGeo, budMat, pistilMat } = S3;
+  const { THREE, toon, basic, mulberry32, BUD_COLORS, budGeo, pistilGeo, budMat, pistilMat, shared, disposeTree } = S3;
 
-  const glassMat = new THREE.MeshPhongMaterial({ color: 0xcfe8e2, transparent: true, opacity: 0.2, shininess: 90, specular: 0xffffff, side: THREE.DoubleSide, depthWrite: false });
-  const jarGeo = new THREE.LatheGeometry([[0, 0], [0.36, 0], [0.4, 0.04], [0.4, 0.86], [0.36, 0.93], [0.31, 0.97], [0.31, 1.06]].map(([x, y]) => new THREE.Vector2(x, y)), 18);
+  const glassMat = shared(new THREE.MeshPhongMaterial({ color: 0xcfe8e2, transparent: true, opacity: 0.2, shininess: 90, specular: 0xffffff, side: THREE.DoubleSide, depthWrite: false }));
+  const jarGeo = shared(new THREE.LatheGeometry([[0, 0], [0.36, 0], [0.4, 0.04], [0.4, 0.86], [0.36, 0.93], [0.31, 0.97], [0.31, 1.06]].map(([x, y]) => new THREE.Vector2(x, y)), 18));
   const JAR_R = 0.33, JAR_TOP = 0.9;
   const LABEL_ANCHOR = [0, 0.66, 0.41];
 
@@ -105,8 +105,7 @@
 
   function disposeJarView(view) {
     if (view.group.parent) view.group.parent.remove(view.group);
-    view.inst.dispose();
-    view.pist.dispose();
+    disposeTree(view.group);
     view.el.remove();
   }
 

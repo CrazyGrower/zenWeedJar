@@ -443,3 +443,37 @@ test('mountScene tells the scene how much of the canvas the HUD and the bottom b
   assert.equal(opts.mode, 'night');
   assert.deepEqual(JSON.parse(JSON.stringify(opts.insets())), { top: 104, bottom: 136 });
 });
+
+test('without three.js the canvas is hidden too, so only the fallback list is announced', () => {
+  const ctx = loadApp();
+  const canvas = { hidden: false };
+  ctx.document.getElementById = (id) => (id === 'scene' ? canvas : null);
+  assert.equal(ctx.mountScene(), false);
+  assert.equal(canvas.hidden, true);
+});
+
+test('takeFromJar takes from the freshest weight, not the one the card was opened with', async () => {
+  const ctx = loadApp();
+  const calls = [];
+  ctx.document.getElementById = (id) => (id === 'offline-notice' ? null : { textContent: '', hidden: true, innerHTML: '', querySelectorAll: () => [] });
+  ctx.Api = { update: async (id, data) => { calls.push(data.weight_g); }, list: async () => [{ id: 7, weight_g: 3 }], events: async () => [], stats: async () => ({}) };
+  await ctx.loadAndRender();
+  await ctx.takeFromJar({ id: 7, weight_g: 10 }, 1);
+  assert.deepEqual(calls, [2]);
+});
+
+test('the scene re-frames when the HUD or the bottom bar changes height', () => {
+  const ctx = loadApp();
+  const observed = [];
+  let fired = 0;
+  ctx.ResizeObserver = class { constructor(cb) { this.cb = cb; } observe(el) { observed.push(el); this.cb(); } };
+  ctx.window.Scene3D = { mount: () => true, onJarClick() {}, refit: () => { fired += 1; } };
+  ctx.localStorage = { getItem: () => null, setItem() {} };
+  const hud = { offsetHeight: 100 };
+  const bottom = { offsetHeight: 130 };
+  ctx.document.getElementById = (id) => (id === 'scene' ? {} : null);
+  ctx.document.querySelector = (sel) => (sel === '.hud' ? hud : sel === '.bottom' ? bottom : null);
+  ctx.mountScene();
+  assert.ok(observed.includes(hud) && observed.includes(bottom));
+  assert.ok(fired >= 1);
+});

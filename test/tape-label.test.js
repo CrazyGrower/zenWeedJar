@@ -56,3 +56,37 @@ test('tapeScale shrinks a tape only as much as it takes to clear its neighbour',
   assert.equal(T.tapeScale(10), 0.5, 'never below half, where the text stops being legible');
   assert.equal(T.tapeScale(NaN), 1);
 });
+
+// A stand-in for canvas measureText: every font has a fixed advance, which is
+// enough to exercise the layout without a browser.
+const measure = (text, font) => String(text).length * (font.includes('15px') ? 6 : font.includes('8px') ? 4 : 5);
+
+test('layoutTape keeps the date beside the weight when there is room', () => {
+  const T = load();
+  const l = T.layoutTape({ name: 'Mango', weight: '40 g', date: '10/04' }, measure);
+  assert.equal(l.dateLine, 'weight');
+  assert.equal(l.name, 'Mango');
+  assert.equal(l.date, '10/04');
+});
+
+test('layoutTape moves the date up to the name line rather than drawing it over a long weight', () => {
+  const T = load();
+  const l = T.layoutTape({ name: 'Mango', weight: '12,5 g', date: '10/04' }, measure);
+  assert.equal(l.dateLine, 'name');
+  assert.equal(l.name, 'Mango');
+});
+
+test('layoutTape drops the date when neither line has room, and never clips the name for it', () => {
+  const T = load();
+  const l = T.layoutTape({ name: 'Gelato 41', weight: '999,9 g', date: '01/08' }, measure);
+  assert.equal(l.dateLine, null);
+  assert.equal(l.name, 'Gelato 41');
+});
+
+test('layoutTape clips a name to the tape width, not to a character count', () => {
+  const T = load();
+  const l = T.layoutTape({ name: 'WWWWWWWWWWW', weight: '1 g', date: '' }, (t, f) => (f.includes('10px') ? t.length * 7 : t.length * 4));
+  assert.ok(l.name.endsWith('.'));
+  assert.ok(l.name.length * 7 <= T.TAPE_W - 15, `"${l.name}" should fit between the torn ends`);
+  assert.equal(l.dateLine, null, 'no date, nothing to place');
+});

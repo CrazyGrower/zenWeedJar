@@ -19,7 +19,18 @@
     const sh = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y)));
     const m = new THREE.Mesh(new THREE.ShapeGeometry(sh), basic(color)); m.position.z = z; parent.add(m); return m;
   }
-  const blobGeo = new THREE.SphereGeometry(1, 10, 8);
+  // Geometries and materials reused across rebuilds are marked shared;
+  // disposeTree frees everything else when a room or a jar goes away, so
+  // toggling Sunset/Night does not pile up GPU buffers.
+  function shared(r) { r.userData.shared = true; return r; }
+  function disposeTree(obj) {
+    obj.traverse((o) => {
+      if (o.isInstancedMesh) o.dispose();
+      if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose();
+      for (const m of [].concat(o.material || [])) if (!m.userData.shared) m.dispose();
+    });
+  }
+  const blobGeo = shared(new THREE.SphereGeometry(1, 10, 8));
   function blob(parent, sx, sy, sz, x, y, z, mat) {
     const m = new THREE.Mesh(blobGeo, mat); m.scale.set(sx, sy, sz); m.position.set(x, y, z); parent.add(m); return m;
   }
@@ -38,10 +49,10 @@
   };
 
   global.S3 = {
-    THREE, ramp, toon, basic, box, flatShape, blob, mulberry32, BUD_COLORS,
-    budGeo: new THREE.IcosahedronGeometry(1, 0),
-    pistilGeo: new THREE.BoxGeometry(1, 1, 1),
-    budMat: toon(0xffffff),
-    pistilMat: basic(0xec8a35),
+    THREE, ramp, toon, basic, box, flatShape, blob, mulberry32, BUD_COLORS, shared, disposeTree,
+    budGeo: shared(new THREE.IcosahedronGeometry(1, 0)),
+    pistilGeo: shared(new THREE.BoxGeometry(1, 1, 1)),
+    budMat: shared(toon(0xffffff)),
+    pistilMat: shared(basic(0xec8a35)),
   };
 })(window);

@@ -32,8 +32,8 @@
 
   // dust motes in the light
   const DN = 70, dustPos = new Float32Array(DN * 3), dr = mulberry32(7);
-  const dustGeo = new THREE.BufferGeometry(); dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
-  const dustMat = new THREE.PointsMaterial({ color: 0xffe6b0, size: 1, sizeAttenuation: false, transparent: true, opacity: 0.6 });
+  const dustGeo = S3.shared(new THREE.BufferGeometry()); dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+  const dustMat = S3.shared(new THREE.PointsMaterial({ color: 0xffe6b0, size: 1, sizeAttenuation: false, transparent: true, opacity: 0.6 }));
   const dust = new THREE.Points(dustGeo, dustMat);
   let dustTop = 3.3;
 
@@ -71,7 +71,7 @@
   function rebuildRoom() {
     views.forEach((v) => S3.disposeJarView(v));
     views = new Map();
-    if (root) scene.remove(root);
+    if (root) { scene.remove(root); S3.disposeTree(root); }
     root = new THREE.Group(); scene.add(root);
     const ys = shelfYs();
     const built = S3.buildRoom(root, scene, mode, ys);
@@ -152,6 +152,10 @@
         canvas.classList.toggle('hover', pick(e) != null);
       }
     });
+    // a touch taken over by the system (gesture, call) never sends pointerup
+    const cancel = () => { canvas.classList.remove('dragging'); down = null; };
+    canvas.addEventListener('pointercancel', cancel);
+    canvas.addEventListener('lostpointercapture', cancel);
     canvas.addEventListener('pointerup', (e) => {
       canvas.classList.remove('dragging');
       if (down && !down.moved) { const id = pick(e); if (id != null && clickCb) clickCb(id); }
@@ -222,6 +226,7 @@
   global.Scene3D = {
     mount,
     isMounted: () => !!renderer,
+    refit() { if (renderer) resize(); },
     setJars,
     setMode,
     onJarClick(cb) { clickCb = cb; },

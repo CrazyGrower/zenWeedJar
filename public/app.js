@@ -9,8 +9,10 @@ function swatchesHtml(current) {
 }
 
 async function takeFromJar(jar, n) {
+  // the card may have been opened before the last reload landed
+  const fresh = jars.find((j) => j.id === jar.id) || jar;
   try {
-    await Api.update(jar.id, { weight_g: StashModel.takeGrams(jar.weight_g, n) });
+    await Api.update(jar.id, { weight_g: StashModel.takeGrams(fresh.weight_g, n) });
   } catch (err) {
     alert(err.message);
   }
@@ -355,7 +357,8 @@ function renderJars(list) {
 function mountScene() {
   const S = window.Scene3D;
   const canvas = document.getElementById('scene');
-  if (!S || !canvas) return false;
+  if (!canvas) return false;
+  if (!S) { canvas.hidden = true; return false; }
   // The HUD and the bottom bar float over the canvas; the scene frames the
   // shelves in the band left between them.
   const height = (sel) => { const el = document.querySelector(sel); return el ? el.offsetHeight : 0; };
@@ -364,6 +367,11 @@ function mountScene() {
     insets: () => ({ top: height('.hud'), bottom: height('.bottom') }),
   });
   if (!ok) { canvas.hidden = true; return false; }
+  // the HUD grows when the last-move line or the offline notice fills in
+  if (typeof ResizeObserver !== 'undefined' && S.refit) {
+    const ro = new ResizeObserver(() => S.refit());
+    ['.hud', '.bottom'].forEach((sel) => { const el = document.querySelector(sel); if (el) ro.observe(el); });
+  }
   S.onJarClick((id) => {
     const jar = jars.find((j) => j.id === id);
     if (jar) openDetail(jar);
