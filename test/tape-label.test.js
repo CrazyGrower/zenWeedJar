@@ -57,28 +57,40 @@ test('tapeScale shrinks a tape only as much as it takes to clear its neighbour',
   assert.equal(T.tapeScale(NaN), 1);
 });
 
-// A stand-in for canvas measureText: every font has a fixed advance, which is
-// enough to exercise the layout without a browser.
-const measure = (text, font) => String(text).length * (font.includes('15px') ? 6 : font.includes('8px') ? 4 : 5);
+// A stand-in for canvas measureText, proportional to the font size with the
+// advances measured in Chrome for the shipped fonts (Jersey 10 is narrow).
+const measure = (text, font) => {
+  const px = Number(font.match(/(\d+)px/)[1]);
+  return String(text).length * px * (font.includes('Jersey') ? 0.33 : 0.47);
+};
 
-test('layoutTape keeps the date beside the weight when there is room', () => {
+test('layoutTape keeps the date beside the weight at full size when there is room', () => {
   const T = load();
   const l = T.layoutTape({ name: 'Mango', weight: '40 g', date: '10/04' }, measure);
   assert.equal(l.dateLine, 'weight');
-  assert.equal(l.name, 'Mango');
-  assert.equal(l.date, '10/04');
+  assert.equal(l.weightFont, T.WEIGHT_FONT);
+  assert.equal(l.dateFont, T.DATE_FONT);
 });
 
-test('layoutTape moves the date up to the name line rather than drawing it over a long weight', () => {
+test('layoutTape shrinks the weight and date a notch so a decimal weight keeps its date', () => {
   const T = load();
-  const l = T.layoutTape({ name: 'Mango', weight: '12,5 g', date: '10/04' }, measure);
+  const l = T.layoutTape({ name: 'Mango', weight: '59,4 g', date: '23/07' }, measure);
+  assert.equal(l.dateLine, 'weight');
+  assert.equal(l.date, '23/07');
+  assert.notEqual(l.weightFont, T.WEIGHT_FONT, 'the weight is drawn a little smaller');
+  assert.notEqual(l.dateFont, T.DATE_FONT, 'and so is the date');
+});
+
+test('layoutTape moves the date beside the name when even the small weight is too wide', () => {
+  const T = load();
+  const l = T.layoutTape({ name: 'Mango', weight: '1234,5 g', date: '10/04' }, measure);
   assert.equal(l.dateLine, 'name');
   assert.equal(l.name, 'Mango');
 });
 
-test('layoutTape drops the date when neither line has room, and never clips the name for it', () => {
+test('layoutTape drops the date only when no line has room, and never clips the name for it', () => {
   const T = load();
-  const l = T.layoutTape({ name: 'Gelato 41', weight: '999,9 g', date: '01/08' }, measure);
+  const l = T.layoutTape({ name: 'Gelato 41', weight: '1234,5 g', date: '01/08' }, measure);
   assert.equal(l.dateLine, null);
   assert.equal(l.name, 'Gelato 41');
 });
