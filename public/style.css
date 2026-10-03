@@ -1,214 +1,107 @@
-  :root{
-    --wall-hi:#6d4a5c; --wall:#4a3850; --wall-lo:#33283f;
-    --ember:#f3a15a; --peach:#ffd38a; --peach-soft:#ffe6b0;
-    --cream:#f7e9cf;
-    --wood:#b07b45; --wood-hi:#cd9a5f; --wood-lo:#6f4a29;
-    --kraft:#ecdcb6; --kraft-lo:#c8b08a; --kraft-ink:#5a4632;
-    image-rendering:pixelated;
-  }
-  *{box-sizing:border-box; margin:0; padding:0;}
-  /* Only html is pinned to the viewport. Giving body a fixed height too froze
-     the document at exactly one screen, so on a phone — where the room is
-     taller than the visible area — the page could not scroll at all and the
-     add button was simply unreachable. min-height lets it grow instead. */
-  html{height:100%;}
-  body{
-    font-family:'Silkscreen',monospace; color:var(--cream); background:#241c2e;
-    min-height:100%;
-    min-height:100dvh; /* iOS: 100% tracks the largest viewport, dvh the visible one */
-    display:flex; flex-direction:column; align-items:center; padding:24px 12px 40px;
-  }
+/* One full-window 3D room; HUD and actions float over it. The canvas is
+   rendered at a quarter resolution and upscaled with hard pixels. */
+:root{
+  --night:#1c1222; --panel:#1f120c; --edge:#6b3f26; --wood:#2a1610;
+  --kraft:#e8d8a6; --kraft-lo:#c8b08a; --cream:#f6e7c8; --amber:#f0b860; --amber-lo:#a86a2a;
+  --muted:#d4b283; --ink:#2a1610; --sage:#9ac48f; --rose:#e79a9a;
+  --display:'Jersey 10', 'Pixelify Sans', monospace;
+  --body:'Pixelify Sans', 'Silkscreen', ui-monospace, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+[hidden]{display:none !important;}
+html,body{height:100%;}
+body{background:var(--night); color:var(--cream); font-family:var(--body); overflow:hidden;}
+.app{position:relative; height:100%; overflow:hidden;}
 
-  /* The room is a fixed-size pixel-art composition — everything inside is
-     placed absolutely against it. Rather than reflow it on a narrow screen
-     (which squashes the shelf grid and shuffles the furniture), keep it at its
-     design width and let this wrapper scroll sideways. */
-  .stage{
-    width:100%; overflow-x:auto; overflow-y:hidden;
-    overscroll-behavior-x:contain;      /* don't hand the swipe to the browser's back gesture */
-    -webkit-overflow-scrolling:touch;
-    padding-bottom:18px;                /* room for the scene's drop shadow, which overflow would clip */
-  }
+#scene{display:block; width:100%; height:100%; image-rendering:pixelated; image-rendering:crisp-edges; touch-action:none; cursor:grab;}
+#scene.dragging{cursor:grabbing;}
+#scene.hover{cursor:pointer;}
+.labels{position:absolute; inset:0; pointer-events:none; overflow:hidden;}
+.labels .tape{position:absolute; left:0; top:0; image-rendering:pixelated; filter:drop-shadow(0 2px 0 rgba(0,0,0,.4));}
 
-  .scene{
-    position:relative; width:1000px; min-width:1000px; margin:0 auto; min-height:660px; overflow:hidden;
-    border:5px solid #1d1626; box-shadow:inset 0 0 0 3px #7a5f6e, 0 14px 0 -4px #150f1c;
-    background:
-      radial-gradient(120% 90% at 82% 6%, rgba(255,211,138,.30), rgba(255,211,138,0) 46%),
-      linear-gradient(178deg, var(--wall-hi) 0%, var(--wall) 42%, var(--wall-lo) 100%);
-  }
-  .floor{position:absolute; left:0; right:0; bottom:0; height:78px;
-    background:linear-gradient(#3a2b34,#2b2029); border-top:4px solid #221820; z-index:1;}
+.fallback{position:absolute; inset:110px 16px 120px; overflow-y:auto; display:flex; flex-direction:column; gap:10px;}
+.fallback__jar{display:flex; justify-content:space-between; align-items:center; min-height:52px; padding:0 14px;
+  background:var(--kraft); color:var(--ink); border:3px solid var(--wood); box-shadow:0 4px 0 rgba(0,0,0,.4);
+  font-family:var(--body); font-size:16px; cursor:pointer;}
+.fallback__jar b{font-family:var(--display); font-weight:400; font-size:26px;}
+.fallback__empty{color:var(--muted); font-size:14px; text-align:center; padding:24px;}
 
-  /* Window: light source */
-  .window{position:absolute; top:26px; right:34px; width:172px; height:132px; z-index:2;
-    background:linear-gradient(180deg,var(--peach) 0%, var(--ember) 58%, #d9695a 100%);
-    border:7px solid #5a3b30; box-shadow:0 0 60px 18px rgba(243,161,90,.45), inset 0 0 0 2px #7a5040;}
-  .window::before,.window::after{content:""; position:absolute; background:#5a3b30;}
-  .window::before{left:50%; top:0; bottom:0; width:6px; transform:translateX(-50%);}  /* vertical bar */
-  .window::after{top:50%; left:0; right:0; height:6px; transform:translateY(-50%);}   /* horizontal bar */
-  .window .sun{position:absolute; left:50%; bottom:54px; transform:translateX(-50%);
-    width:46px; height:46px; background:var(--peach-soft); box-shadow:0 0 34px 16px rgba(255,230,176,.85);}
-  .sill{position:absolute; top:150px; right:22px; width:196px; height:12px; z-index:2;
-    background:linear-gradient(var(--wood-hi),var(--wood)); border:3px solid var(--wood-lo);}
+.hud{position:absolute; left:0; right:0; top:0; display:flex; justify-content:space-between; align-items:flex-start; gap:12px;
+  padding:calc(16px + env(safe-area-inset-top, 0px)) 16px 16px; pointer-events:none;}
+.hud__title{display:flex; flex-direction:column; gap:6px; min-width:0;}
+.hud__title h1{font-family:var(--display); font-weight:400; font-size:42px; line-height:.85; text-shadow:0 4px 0 rgba(0,0,0,.5);}
+.hud__last{font-size:13px; color:var(--muted); text-shadow:0 2px 0 rgba(0,0,0,.6);}
+.hud__tag{pointer-events:auto; flex:none; display:flex; flex-direction:column; align-items:center; gap:2px;
+  background:var(--kraft); color:var(--ink); border:4px solid var(--wood); box-shadow:0 4px 0 rgba(0,0,0,.4);
+  padding:6px 12px 8px; font-family:var(--body); cursor:pointer;}
+.hud__total{font-family:var(--display); font-size:38px; line-height:.85; font-variant-numeric:tabular-nums;}
+.hud__label{font-size:12px; color:#5a3d24;}
+.hud__eta{font-size:12px; color:#5a3d24;}
+.hud__eta:empty{display:none;}
+.hud__offline{pointer-events:auto; margin-top:8px; font-size:12px; color:var(--rose);}
 
-  /* Signature: sunset beam */
-  .beam{position:absolute; top:-60px; right:60px; width:260px; height:820px; z-index:1;
-    background:linear-gradient(180deg, rgba(255,222,150,.34), rgba(255,200,130,.10) 40%, rgba(255,200,130,0) 72%);
-    transform:rotate(24deg); transform-origin:top center; mix-blend-mode:screen; pointer-events:none;}
-  .dust{position:absolute; width:4px; height:4px; background:rgba(255,240,205,.85); z-index:1; pointer-events:none;
-    animation:drift 7s steps(6) infinite;}
-  @keyframes drift{0%{transform:translate(0,0);opacity:0}20%{opacity:1}100%{transform:translate(-14px,26px);opacity:0}}
+.bottom{position:absolute; left:0; right:0; bottom:0; display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:10px;
+  padding:16px 16px calc(16px + env(safe-area-inset-bottom, 0px)); pointer-events:none;}
+.bottom > *{pointer-events:auto;}
+.seg{display:flex; gap:4px; padding:4px; background:var(--panel); border:2px solid var(--edge);}
+.seg button{font-family:var(--body); font-size:14px; min-height:40px; padding:0 12px; background:transparent; color:var(--cream); border:2px solid transparent; cursor:pointer;}
+.seg button[aria-pressed="true"]{background:var(--amber); color:var(--ink); border-color:var(--wood);}
+.add__btn{font-family:var(--display); font-size:26px; min-height:48px; padding:0 18px; background:var(--amber); color:var(--ink);
+  border:4px solid #120a06; box-shadow:0 4px 0 var(--amber-lo); cursor:pointer;}
+.add__btn:active{transform:translateY(4px); box-shadow:none;}
+button:focus-visible{outline:3px solid var(--cream); outline-offset:2px;}
 
-  /* HUD hanging tag */
-  .hud{position:absolute; top:0; left:42px; z-index:5; text-align:center; width:150px;}
-  .hud__string{width:3px; height:26px; margin:0 auto; background:#7a5f6e;}
-  .hud__tag{position:relative; display:block; width:100%; background:var(--kraft); color:var(--kraft-ink);
-    border:3px solid var(--kraft-lo); padding:10px 18px 12px; box-shadow:0 5px 0 rgba(0,0,0,.28);
-    font-family:inherit; text-align:center; cursor:pointer;
-    appearance:none; -webkit-appearance:none;}
-  .hud__tag:hover{background:#f4e7c6;}
-  .hud__tag::before{content:""; position:absolute; top:6px; left:50%; transform:translateX(-50%);
-    width:8px; height:8px; border-radius:50%; background:#8a7355;}
-  .hud__label, .hud__total{display:block;}
-  .hud__label{font-size:8px; letter-spacing:2px; color:#8a7355; margin-top:6px;}
-  .hud__total{font-family:'Press Start 2P'; font-size:18px; margin-top:7px; color:#4a3510; text-shadow:2px 2px 0 rgba(243,161,90,.5);}
-  .hud__eta{display:block; font-size:9px; letter-spacing:1px; color:#8a7355; margin-top:6px; min-height:9px;}
-  .hud__offline{font-size:8px; letter-spacing:1px; line-height:1.6; color:var(--cream); margin-top:8px; text-align:center;}
-  /* Mini kraft tags strung under the sign. Each carries its own border, and
-     each tag drops its top edge so it shares the border of the tag above and
-     the strip reads as one hanging chain. */
-  .hud__log{margin:0 auto; width:100%;}
-  .hud__log .ev{background:var(--kraft); border:3px solid var(--kraft-lo); border-top:none;
-    padding:4px 6px 5px; font-size:8px; letter-spacing:1px; text-align:left;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-    box-shadow:0 2px 0 rgba(0,0,0,.18);}
-  .hud__log .d{font-weight:700;}
-  .hud__log .d.up{color:#3d7a45;}
-  .hud__log .d.down{color:#a2453a;}
-  .hud__log .n{color:var(--kraft-ink);}
-
-  /* Shelves */
-  /* The 206px on the left is the journal's column: the hanging tags live
-     there, so the shelves must not reach into it. The scene grew by the same
-     amount, which keeps the six slots at exactly the width they had. */
-  .stack{position:relative; z-index:3; padding:182px 26px 0 206px;}
-  .shelf{margin-bottom:36px;}
-  .shelf__row{display:grid; grid-template-columns:repeat(6,1fr); align-items:end; gap:2px; padding:0 8px 3px;}
-  .shelf__plank{height:16px; background:linear-gradient(var(--wood-hi),var(--wood));
-    border:3px solid var(--wood-lo); box-shadow:0 7px 0 -1px var(--wood-lo), 0 12px 22px rgba(0,0,0,.42);}
-  .slot{display:flex; justify-content:center; align-items:flex-end; min-height:150px;}
-  .jar{width:96px; height:auto; display:block; cursor:pointer; transition:transform .12s steps(2);
-    filter:drop-shadow(0 3px 2px rgba(0,0,0,.35));}
-  .jar.ghost:hover{transform:translateY(-4px);}
-
-  /* jar + its foot label lift together on hover */
-  /* --jx is a per-jar horizontal nudge set inline by app.js, so jars sit a
-     little off-centre in their slot instead of in a tidy row. The hover rule
-     has to repeat it or the jar would snap back to centre while lifting. */
-  .jarwrap{position:relative; cursor:pointer; transition:transform .12s steps(2);
-    transform:translateX(var(--jx,0px));}
-  .jarwrap:hover{transform:translateX(var(--jx,0px)) translateY(-7px);}
-  /* Over one jar's worth (50g), a second jar holds the overflow behind the
-     first. The front jar needs its own stacking position or the absolutely
-     positioned back jar would paint on top of it. */
-  .jarwrap .jar{position:relative; z-index:1;}
-  /* Must out-specify `.jarwrap .jar` above, or the back jar keeps position:
-     relative, stays in flow and stacks above the front one instead of behind. */
-  .jarwrap .jar--back{position:absolute; left:0; top:0; z-index:0; pointer-events:none;
-    transform:translate(-17px,-9px) scale(.93); filter:brightness(.72) saturate(.85);}
-  /* kraft label wrapped around the foot of the jar */
-  /* z-index clears the front jar's z-index:1, which would otherwise cover it */
-  .jarwrap .label{position:absolute; z-index:2; left:50%; bottom:7%; transform:translateX(-50%);
-    background:var(--kraft); border:2px solid var(--kraft-lo); padding:3px 5px 4px; text-align:center;
-    width:62px; box-shadow:0 2px 0 rgba(0,0,0,.22); pointer-events:none;}
-  .label .n{font-size:10px; font-weight:700; color:var(--kraft-ink); display:block; line-height:1;}
-  .label .d{font-size:7px; color:#8a7355; display:block; margin-top:2px;}
-
-  /* Black cat with yellow eyes */
-  .cat{position:absolute; bottom:76px; right:44px; z-index:4; width:100px; height:52px;}
-  .cat .body{position:absolute; bottom:0; left:16px; width:80px; height:30px; background:#1b1b22; border:3px solid #47434f; border-radius:46% 46% 24% 24%;}
-  .cat .tail{position:absolute; bottom:1px; right:-8px; width:30px; height:11px; background:#1b1b22; border:3px solid #47434f; border-radius:0 55% 55% 0; transform:rotate(-6deg);}
-  .cat .head{position:absolute; bottom:6px; left:0; width:34px; height:30px; background:#1b1b22; border:3px solid #47434f; border-radius:46%; z-index:2;}
-  .cat .ear{position:absolute; top:-5px; width:12px; height:12px; background:#1b1b22; border:3px solid #47434f; z-index:1;}
-  .cat .ear.l{left:2px; transform:rotate(-12deg);} .cat .ear.r{left:18px; transform:rotate(12deg);}
-  .cat .eye{position:absolute; top:11px; width:8px; height:7px; background:#f5c542; border:1px solid #8a6410; z-index:3;}
-  .cat .eye.l{left:5px;} .cat .eye.r{left:19px;}
-  .cat .pupil{position:absolute; top:12px; width:2px; height:5px; background:#141414; z-index:4;}
-  .cat .pupil.l{left:8px;} .cat .pupil.r{left:22px;}
-  .cat .nose{position:absolute; top:19px; left:15px; width:5px; height:3px; background:#5a3b45; z-index:3;}
-
-  /* Add button */
-  /* Unlike the window, sill, beam, cat and floor, this one isn't anchored to
-     an edge — it's centred on the scene. The 180px journal column sits to the
-     left of the shelves, so the shelves' centre is 90px right of the scene's
-     centre; track that offset here or the button drifts back over the
-     journal. Reverted below 900px, where the journal is hidden. */
-  .add{position:absolute; bottom:16px; left:calc(50% + 90px); transform:translateX(-50%); z-index:5;}
-  .add__btn{font-family:'Silkscreen'; font-weight:700; font-size:12px; color:#4a3510;
-    background:linear-gradient(var(--peach),var(--ember)); border:3px solid #b87a34;
-    padding:12px 22px; cursor:pointer; letter-spacing:1px; box-shadow:0 5px 0 #935e26;}
-  .add__btn:active{transform:translateY(4px); box-shadow:0 1px 0 #935e26;}
-
-  @media (prefers-reduced-motion: reduce){ .dust{animation:none;} }
-  /* Under 900px the journal is hidden and the room goes back to exactly the
-     numbers it had before the journal existed — the mobile view is unchanged. */
-  @media (max-width:900px){
-    .scene{width:820px; min-width:820px;}
-    .stack{padding-left:26px;}
-    .hud{width:auto;}
-    .hud__log{display:none;}
-    .add{left:50%;}
-  }
-  /* No narrow-screen reflow: the scene keeps its 6-slot grid and its cat, and
-     .stage scrolls instead. Only the page padding tightens, to give the room
-     as much of a small screen as possible. */
-  @media (max-width:560px){ body{padding:10px 0 24px;} }
-
-/* The `*{margin:0}` reset above kills the UA's `margin:auto` on <dialog>, which
-   is what centers a modal — without it every dialog pins to the top-left. */
-dialog{ border:none; padding:0; background:transparent; color:var(--cream);
-  margin:auto; max-width:calc(100vw - 24px); max-height:calc(100vh - 24px); overflow:auto; }
-dialog::backdrop{ background:rgba(20,14,26,.66); }
-.modal{ background:var(--wall-hi); border:5px solid #1d1626; box-shadow:inset 0 0 0 3px #7a5f6e;
-  padding:22px 22px 20px; width:min(92vw,340px); font-family:'Silkscreen',monospace; }
-.modal h2{ font-family:'Press Start 2P'; font-size:14px; color:var(--peach); margin-bottom:4px; }
-.modal .sub{ font-size:9px; color:#cdb9a6; letter-spacing:1px; margin-bottom:16px; }
-.modal .row{ margin-bottom:12px; }
-.modal .row label{ display:block; font-size:8px; letter-spacing:2px; color:#cdb9a6; margin-bottom:5px; }
-.modal input, .modal textarea{ width:100%; font-family:'Silkscreen',monospace; font-size:11px;
-  background:#f6efdb; color:var(--kraft-ink); border:3px solid var(--kraft-lo); padding:8px; }
-.bar{ height:14px; background:#d8cbaa; border:2px solid var(--kraft-lo); position:relative; overflow:hidden; }
-.bar>span{ position:absolute; top:0; bottom:0; left:0; background:var(--ember); }
-.ratio>.i{ position:absolute; left:0; top:0; bottom:0; background:#b58fd6; }
-.ratio>.s{ position:absolute; right:0; top:0; bottom:0; background:#8fc0a0; }
-.modal .actions{ display:flex; flex-direction:column; gap:8px; margin-top:16px; }
-.modal .log{max-height:50vh; overflow-y:auto; border:3px solid #7a5f6e; background:rgba(20,14,26,.35); padding:8px;}
-.modal .log__line{font-size:10px; line-height:1.9; color:#efe6cf; white-space:nowrap;}
-.modal .log__empty{font-size:10px; color:#cdb9a6; padding:12px 0;}
+/* dialogs: 2D pixel cards over the room */
+dialog{border:none; padding:0; background:transparent; color:var(--cream); margin:auto;
+  max-width:calc(100vw - 24px); max-height:calc(100dvh - 24px); overflow:auto;}
+dialog::backdrop{background:rgba(14,8,18,.7);}
+.modal{background:var(--panel); border:4px solid var(--edge); box-shadow:0 6px 0 rgba(0,0,0,.6);
+  padding:20px; width:min(92vw,360px); font-family:var(--body);}
+.modal h2{font-family:var(--display); font-weight:400; font-size:40px; line-height:.9; color:var(--cream); margin-bottom:4px;}
+.modal .sub{font-size:13px; color:var(--muted); margin-bottom:14px;}
+.modal .row{margin-bottom:12px;}
+.modal .row label, .modal legend{display:block; font-size:13px; color:var(--muted); margin-bottom:6px;}
+.modal input, .modal textarea{width:100%; font-family:var(--body); font-size:16px; background:#2b1a12; color:var(--cream);
+  border:2px solid var(--edge); padding:10px;}
+.modal .weight{font-family:var(--display); font-size:44px; line-height:.9; color:var(--amber);}
+.bar{height:14px; background:#2b1a12; border:2px solid var(--edge); position:relative; overflow:hidden;}
+.bar>span{position:absolute; top:0; bottom:0; left:0; background:var(--amber);}
+.ratio>.i{position:absolute; left:0; top:0; bottom:0; background:#b58fd6;}
+.ratio>.s{position:absolute; right:0; top:0; bottom:0; background:#8fc0a0;}
+.take{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px;}
+.swatches{border:0; display:flex; flex-wrap:wrap; gap:10px;}
+.swatch{position:relative; width:44px; height:44px; cursor:pointer;}
+.swatch input{position:absolute; opacity:0; inset:0; width:100%; height:100%; margin:0; cursor:pointer;}
+.swatch span{display:block; width:100%; height:100%; background:var(--c); border:4px solid #120a06;}
+.swatch input:checked + span{outline:3px solid var(--cream); outline-offset:3px;}
+.swatch input:focus-visible + span{outline:3px dashed var(--amber); outline-offset:3px;}
+.modal .actions{display:flex; flex-direction:column; gap:8px; margin-top:16px;}
+.modal .log{max-height:50vh; overflow-y:auto; border:2px solid var(--edge); background:#160c08; padding:8px;}
+.modal .log__line{font-size:13px; line-height:1.8; color:var(--cream); white-space:nowrap;}
+.modal .log__empty{font-size:13px; color:var(--muted); padding:12px 0;}
 .modal .tabs{display:flex; gap:6px; margin:10px 0 14px;}
-.modal .tab{flex:1; font-family:'Silkscreen'; font-weight:700; font-size:10px; letter-spacing:1px; padding:6px;
-  cursor:pointer; background:transparent; color:#cdb9a6; border:3px solid #7a5f6e;}
-.modal .tab--on{background:var(--kraft); color:var(--kraft-ink); border-color:var(--kraft-lo);}
-.stats__big{font-family:'Press Start 2P'; font-size:22px; color:var(--peach); margin:4px 0 8px;
-  text-shadow:2px 2px 0 rgba(243,161,90,.35);}
-.stats__line{font-size:11px; color:#efe6cf; line-height:1.6;}
-.stats__bars{display:flex; align-items:flex-end; gap:3px; height:60px; padding:4px;
-  border:3px solid #7a5f6e; background:rgba(20,14,26,.35);}
+.modal .tab{flex:1; font-family:var(--body); font-size:14px; padding:8px; cursor:pointer; background:transparent; color:var(--muted); border:2px solid var(--edge);}
+.modal .tab--on{background:var(--kraft); color:var(--ink); border-color:var(--kraft-lo);}
+.stats__big{font-family:var(--display); font-size:48px; line-height:.9; color:var(--amber); margin:4px 0 8px;}
+.stats__line{font-size:14px; color:var(--cream); line-height:1.6;}
+.stats__bars{display:flex; align-items:flex-end; gap:3px; height:60px; padding:4px; border:2px solid var(--edge); background:#160c08;}
 .stats__col{flex:1; height:100%; display:flex; align-items:flex-end; position:relative; cursor:default; outline:none;}
-.stats__bar{width:100%; min-height:2px; background:var(--ember); box-shadow:inset 0 2px 0 var(--peach);}
-.stats__col:hover .stats__bar, .stats__col:focus .stats__bar{background:var(--peach);}
+.stats__bar{width:100%; min-height:2px; background:var(--amber);}
+.stats__col:hover .stats__bar, .stats__col:focus .stats__bar{background:var(--cream);}
 /* Centred over its column, except at the edges, where it would spill out of
    the modal: the first bars anchor it left, the last ones right. */
 .stats__col:hover::after, .stats__col:focus::after{content:attr(data-tip); position:absolute; bottom:calc(100% + 8px);
   left:50%; transform:translateX(-50%); white-space:nowrap; z-index:2; pointer-events:none;
-  font-size:9px; letter-spacing:1px; padding:4px 6px; background:var(--kraft); color:var(--kraft-ink);
-  border:2px solid var(--kraft-lo);}
+  font-size:12px; padding:4px 6px; background:var(--kraft); color:var(--ink); border:2px solid var(--kraft-lo);}
 .stats__col:nth-child(-n+3):hover::after, .stats__col:nth-child(-n+3):focus::after{left:0; transform:none;}
 .stats__col:nth-last-child(-n+3):hover::after, .stats__col:nth-last-child(-n+3):focus::after{left:auto; right:0; transform:none;}
-.btn{ font-family:'Silkscreen'; font-weight:700; font-size:10px; padding:10px; cursor:pointer; border:3px solid; letter-spacing:1px; }
-.btn--primary{ background:var(--peach); border-color:#b87a34; color:#4a3510; box-shadow:0 4px 0 #935e26; }
-.btn--edit{ background:#9ac48f; border-color:#5f8a63; color:#204028; box-shadow:0 4px 0 #5f8a63; }
-.btn--del{ background:#e79a9a; border-color:#c26a6a; color:#5a2020; box-shadow:0 4px 0 #c26a6a; }
-.btn--ghost{ background:transparent; border-color:#7a5f6e; color:#cdb9a6; box-shadow:none; }
-.btn:active{ transform:translateY(3px); box-shadow:none; }
+.btn{font-family:var(--body); font-size:15px; min-height:44px; padding:8px 10px; cursor:pointer; border:3px solid #120a06;}
+.btn--primary{background:var(--amber); color:var(--ink); box-shadow:0 4px 0 var(--amber-lo);}
+.btn--take{font-family:var(--display); font-size:24px; background:var(--kraft); color:var(--ink); box-shadow:0 4px 0 #8a6a3a;}
+.btn--edit{background:var(--sage); color:#204028; box-shadow:0 4px 0 #5f8a63;}
+.btn--del{background:var(--rose); color:#5a2020; box-shadow:0 4px 0 #c26a6a;}
+.btn--ghost{background:transparent; border-color:var(--edge); color:var(--muted); box-shadow:none;}
+.btn:active{transform:translateY(3px); box-shadow:none;}
+
+@media (prefers-reduced-motion: reduce){ .btn:active, .add__btn:active{transform:none;} }

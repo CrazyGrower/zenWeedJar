@@ -9,6 +9,10 @@
 
   const PIX = 4;
   const HALF_W = 2.25;
+  // A portrait phone frames the shelves and the cat rather than the whole
+  // room, so the jars are big enough to read; the window and plant crop.
+  const PORTRAIT = 0.8;
+  const HALF_W_PORTRAIT = 1.72;
   const YAW0 = -0.06;
   const reduceMotion = !!(global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
@@ -21,6 +25,7 @@
   let clickCb = null;
   const target = new THREE.Vector3(0.95, 1.6, 0.45);
   let halfH = 1.65, yaw = YAW0, pitch = 0.08, yawT = yaw, pitchT = pitch, dist = 8;
+  let tapeScale = 1;
 
   // dust motes in the light
   const DN = 70, dustPos = new Float32Array(DN * 3), dr = mulberry32(7);
@@ -37,7 +42,13 @@
 
   function fit() {
     const t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    dist = Math.max(halfH / t, HALF_W / (t * camera.aspect)) + 0.9;
+    const portrait = camera.aspect < PORTRAIT;
+    target.x = portrait ? 1.27 : 0.95;
+    dist = Math.max(halfH / t, (portrait ? HALF_W_PORTRAIT : HALF_W) / (t * camera.aspect)) + 0.9;
+    // screen pixels between two neighbouring jars, at the jars' depth
+    const w = canvas.clientWidth || global.innerWidth;
+    const visibleW = 2 * t * camera.aspect * (dist - 0.1);
+    tapeScale = T.tapeScale((S3.SHELF_X[1] - S3.SHELF_X[0]) / visibleW * w);
   }
   function placeCamera() {
     camera.position.set(target.x + Math.sin(yaw) * Math.cos(pitch) * dist, target.y + Math.sin(pitch) * dist, target.z + Math.cos(yaw) * Math.cos(pitch) * dist);
@@ -152,7 +163,7 @@
       tmp.copy(v.anchor); v.group.localToWorld(tmp); tmp.project(camera);
       const lx = Math.round((tmp.x + 1) / 2 * w - (T.TAPE_W * T.CSS_SCALE) / 2);
       const ly = Math.round((1 - tmp.y) / 2 * h - (T.TAPE_H * T.CSS_SCALE) / 2);
-      v.el.style.transform = `translate(${lx}px,${ly}px)`;
+      v.el.style.transform = `translate(${lx}px,${ly}px) scale(${tapeScale})`;
     });
     if (!reduceMotion && cat) {
       cat.tail.rotation.z = Math.sin(t * 1.3) * 0.25;

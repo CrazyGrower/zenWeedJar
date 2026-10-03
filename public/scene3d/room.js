@@ -14,16 +14,18 @@
   function buildRoom(root, scene, mode, shelfYs) {
     const sunset = mode !== 'night';
     const topY = shelfYs[shelfYs.length - 1];
-    const wallH = topY + 3.5;
+    // tall enough to fill a portrait screen above the top shelf
+    const wallH = topY + 6;
     scene.background = new THREE.Color(sunset ? 0x24162a : 0x0f1222);
     root.add(new THREE.AmbientLight(sunset ? 0x7a5a7a : 0x5a6290, sunset ? 0.55 : 0.6));
     const key = new THREE.DirectionalLight(sunset ? 0xff9a5a : 0x9fb4ff, sunset ? 0.85 : 0.55); key.position.set(-5, 2.2, 3); root.add(key);
     const lamp = new THREE.PointLight(0xffc37a, sunset ? 0.8 : 1.3, 6 + shelfYs.length, 1.6); lamp.position.set(1.6, topY + 0.8, 1.2); root.add(lamp);
 
-    box(root, 9, wallH, 0.1, sunset ? 0x3a2c44 : 0x2b2a44, 0.4, wallH / 2 - 1.2, -0.05);
-    for (let x = -3.8; x < 4.6; x += 0.6) box(root, 0.06, wallH, 0.02, sunset ? 0x33263c : 0x25243c, x, wallH / 2 - 1.2, 0.01);
-    box(root, 9, 0.1, 4, 0x3a2b34, 0.4, -0.45, 1.8);
-    box(root, 9, 0.18, 0.06, 0x1d1c30, 0.4, -0.31, 0.03);
+    // wide enough that the edges stay off screen when the camera backs away for more shelves
+    box(root, 24, wallH, 0.1, sunset ? 0x3a2c44 : 0x2b2a44, 0.4, wallH / 2 - 1.2, -0.05);
+    for (let x = -11.6; x < 12.4; x += 0.6) box(root, 0.06, wallH, 0.02, sunset ? 0x33263c : 0x25243c, x, wallH / 2 - 1.2, 0.01);
+    box(root, 24, 0.1, 8, 0x3a2b34, 0.4, -0.45, 3.8);
+    box(root, 24, 0.18, 0.06, 0x1d1c30, 0.4, -0.31, 0.03);
     box(root, 2.2, 0.02, 1.2, 0x7a3a3a, 1.1, -0.39, 1.4);
     box(root, 2.0, 0.025, 1.0, 0x9a5a48, 1.1, -0.385, 1.4);
 

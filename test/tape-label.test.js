@@ -47,3 +47,12 @@ test('the tape is drawn at ×1 and shown at twice its layout size', () => {
   assert.equal(c.style.width, '128px');
   assert.equal(c.className, 'tape');
 });
+
+test('tapeScale shrinks a tape only as much as it takes to clear its neighbour', () => {
+  const T = load();
+  assert.equal(T.tapeScale(200), 1, 'room to spare: native size, never enlarged');
+  assert.equal(T.tapeScale(132), 1, 'exactly a tape plus the gap');
+  assert.equal(T.tapeScale(66), 0.5);
+  assert.equal(T.tapeScale(10), 0.5, 'never below half, where the text stops being legible');
+  assert.equal(T.tapeScale(NaN), 1);
+});

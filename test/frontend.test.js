@@ -12,146 +12,19 @@ import { fileURLToPath } from 'url';
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const read = (f) => fs.readFileSync(path.join(PUBLIC, f), 'utf8');
 
-function loadJarSvg() {
-  const ctx = vm.createContext({ window: {}, Math, console });
-  vm.runInContext(read('jar-svg.js'), ctx);
-  return ctx.window.JarSvg;
-}
-
 // app.js touches the DOM at load time and inside its render helpers; the stubs
 // are only as deep as the pure functions under test need.
 function loadApp() {
   const ctx = vm.createContext({
     window: {},
-    document: { addEventListener() {}, getElementById: () => null, querySelectorAll: () => [] },
+    document: { addEventListener() {}, getElementById: () => null, querySelectorAll: () => [], querySelector: () => null },
     Math, console, Number, String, Array, Object, JSON, Date,
   });
-  vm.runInContext(read('jar-svg.js'), ctx);
-  ctx.JarSvg = ctx.window.JarSvg;
+  vm.runInContext(read('stash-model.js'), ctx);
+  ctx.StashModel = ctx.window.StashModel;
   vm.runInContext(read('app.js'), ctx);
   return ctx;
 }
-
-// #jarInner clips to the jar outline (#sil), whose top edge — the neck, under
-// the cap — is y=11. Contents may fill right up to it; nothing may pass it.
-const NECK_TOP = 11;
-const JAR_BOTTOM = 44;
-
-function budTops(markup) {
-  return [...markup.matchAll(/<use href="#bud\d" x="[-\d.]+" y="([-\d.]+)"/g)].map((m) => Number(m[1]));
-}
-
-// --- jar-svg: the fill gauge -------------------------------------------------
-
-test('fillTop maps empty to the jar floor and full to the brim', () => {
-  const { fillTop } = loadJarSvg();
-  assert.equal(fillTop(0, 50), JAR_BOTTOM);
-  assert.equal(fillTop(50, 50), 11.5);
-  assert.ok(fillTop(50, 50) >= NECK_TOP, 'a full jar must not fill past the neck');
-  assert.ok(fillTop(50, 50) < 14, 'a full jar should reach the neck, not stop at the shoulder');
-  assert.equal(fillTop(25, 50), 27.75);
-});
-
-test('fillTop clamps out-of-range input instead of overflowing the jar', () => {
-  const { fillTop } = loadJarSvg();
-  assert.equal(fillTop(999, 50), 11.5);
-  assert.equal(fillTop(-5, 50), JAR_BOTTOM);
-  assert.equal(fillTop(10, 0), JAR_BOTTOM, 'a zero capacity must not divide by zero');
-});
-
-// --- jar-svg: the 50g overflow rule -----------------------------------------
-
-test('a jar at or under capacity renders one jar, over it renders exactly two', () => {
-  const { buildJar, CAPACITY_G } = loadJarSvg();
-  const backs = (g) => (buildJar({ id: 1, weight_g: g, color_tag: '#e2a04c' }).match(/jar--back/g) || []).length;
-
-  assert.equal(CAPACITY_G, 50);
-  for (const g of [0, 1, 25, 49.9, 50]) assert.equal(backs(g), 0, `${g}g should be a single jar`);
-  // and it only ever doubles, however far over capacity
-  for (const g of [50.1, 77, 100, 500, 10000]) assert.equal(backs(g), 1, `${g}g should be exactly two jars`);
-});
-
-test('the second jar holds the overflow, capped at one jar of its own', () => {
-  const { buildJar, fillTop } = loadJarSvg();
-  const backTop = (g) => {
-    const back = buildJar({ id: 1, weight_g: g, color_tag: '#e2a04c' }).split('jar--back')[1];
-    return Math.min(...budTops(back.slice(0, back.indexOf('</svg>'))));
-  };
-  // 77g -> 27g behind; 150g -> the back jar is full, same as 500g
-  assert.ok(backTop(77) > backTop(150), '77g should leave the back jar less full than 150g');
-  assert.equal(backTop(150), backTop(500), 'past two jars' + ' worth, the back jar stops changing');
-  assert.ok(backTop(150) >= fillTop(50, 50), 'the back jar must not overfill either');
-});
-
-// --- jar-svg: the clip edge --------------------------------------------------
-
-test('no bud is drawn above the fill line or past the neck, at any weight or id', () => {
-  const { buildJar, fillTop, CAPACITY_G } = loadJarSvg();
-  let highest = Infinity;
-  for (let id = 1; id <= 60; id++) {
-    for (const weight_g of [0.5, 12, 33, 49, 50, 64, 99, 250]) {
-      const tops = budTops(buildJar({ id, weight_g, color_tag: '#79a67e' }));
-      if (!tops.length) continue;
-      const surface = Math.min(...tops);
-      const line = fillTop(Math.min(weight_g, CAPACITY_G), CAPACITY_G);
-      // the surface may dip below the fill line, never rise above it
-      assert.ok(surface >= line - 0.05, `${weight_g}g/id${id}: bud at ${surface} above fill line ${line}`);
-      highest = Math.min(highest, surface);
-    }
-  }
-  assert.ok(highest >= NECK_TOP, `highest bud landed at ${highest}, the neck is at ${NECK_TOP}`);
-});
-
-test('the contents are clipped to the jar outline, not to a rectangle', () => {
-  // A rectangular clip is invisible to the coordinate checks above: the buds
-  // are emitted at the right positions and simply get sliced when drawn. So
-  // this asserts the markup itself, which is the only place it shows.
-  const markup = read('index.html');
-  const clip = markup.match(/<clipPath id="jarInner">([\s\S]*?)<\/clipPath>/);
-  assert.ok(clip, 'the #jarInner clip path should exist');
-  assert.match(clip[1], /<use\s+href="#sil"\s*\/>/, 'it should clip to the jar silhouette');
-  assert.doesNotMatch(clip[1], /<rect/, 'a rect clip would put a flat ceiling on the fill');
-});
-
-test('body is not pinned to the viewport height, so the page can scroll', () => {
-  // Another invariant no coordinate check can see: with `height:100%` on body
-  // the document froze at exactly one screen, and on a phone — where the room
-  // is taller than the visible area — the add button became unreachable
-  // because there was no vertical scroll at all.
-  const css = read('style.css').replace(/\/\*[\s\S]*?\*\//g, '');
-  const bodyRule = css.match(/(^|\})\s*body\s*\{([^}]*)\}/);
-  assert.ok(bodyRule, 'the body rule should exist');
-  assert.doesNotMatch(bodyRule[2], /(^|;)\s*height\s*:/, 'body must not have a fixed height');
-  assert.match(bodyRule[2], /min-height\s*:/, 'body should use min-height instead');
-  assert.doesNotMatch(css, /html\s*,\s*body\s*\{[^}]*height\s*:\s*100%/, 'nor via a shared html,body rule');
-});
-
-// --- jar-svg: colour handling and XSS ---------------------------------------
-
-test('color_tag is allowlisted to a hex colour, so markup cannot be injected', () => {
-  const { buildJar } = loadJarSvg();
-  const payload = '"/><img src=x onerror=alert(1)><rect fill="';
-  const out = buildJar({ id: 1, weight_g: 20, color_tag: payload });
-  assert.ok(!out.includes('<img'), 'payload must not become an element');
-  assert.ok(!out.includes('onerror'), 'payload must not become an attribute');
-  assert.ok(out.includes('#79a67e'), 'it should fall back to the default cap colour');
-});
-
-test('a valid hex cap is kept and a malformed one falls back', () => {
-  const { buildJar } = loadJarSvg();
-  assert.ok(buildJar({ id: 1, weight_g: 20, color_tag: '#e2a04c' }).includes('fill="#e2a04c"'));
-  assert.ok(buildJar({ id: 1, weight_g: 20, color_tag: '#E2A04C' }).includes('fill="#E2A04C"'));
-  for (const bad of ['#abc', 'red', '', null, undefined, ' #e2a04c']) {
-    assert.ok(buildJar({ id: 1, weight_g: 20, color_tag: bad }).includes('#79a67e'), `${bad} should fall back`);
-  }
-});
-
-test('the same jar always renders identically, so buds do not jump on re-render', () => {
-  const { buildJar } = loadJarSvg();
-  const jar = { id: 7, weight_g: 42, color_tag: '#b07d9c' };
-  assert.equal(buildJar(jar), buildJar(jar));
-  assert.notEqual(buildJar(jar), buildJar({ ...jar, id: 8 }), 'different jars should differ');
-});
 
 // --- app.js: escaping --------------------------------------------------------
 
@@ -159,17 +32,6 @@ test('escapeHtml neutralises every character that could break out of markup', ()
   const { escapeHtml } = loadApp();
   assert.equal(escapeHtml(`&<>"'`), '&amp;&lt;&gt;&quot;&#39;');
   assert.equal(escapeHtml('<img src=x onerror=alert(1)>'), '&lt;img src=x onerror=alert(1)&gt;');
-});
-
-test('a jar name or date containing markup is escaped on the shelf', () => {
-  const { filledSlot } = loadApp();
-  const html = filledSlot({
-    id: 1, weight_g: 10, color_tag: '#79a67e',
-    name: '<img src=x onerror=alert(1)>', harvest_date: '"><b>x</b>',
-  });
-  assert.ok(!html.includes('<img'), 'name must not become an element');
-  assert.ok(!html.includes('<b>'), 'harvest_date must not become an element');
-  assert.ok(html.includes('&lt;img'), 'it should appear as escaped text instead');
 });
 
 test('a jar name and notes containing markup are escaped in the detail modal', () => {
@@ -180,6 +42,7 @@ test('a jar name and notes containing markup are escaped in the detail modal', (
     set innerHTML(v) { written = v; },
     get innerHTML() { return written; },
     querySelector: () => stubButton,
+    querySelectorAll: () => [], addEventListener() {},
     showModal() {},
     close() {},
   };
@@ -205,6 +68,7 @@ test('a percentage cannot break out of the inline style it is written into', () 
     set innerHTML(v) { written = v; },
     get innerHTML() { return written; },
     querySelector: () => ({ set onclick(_) {} }),
+    querySelectorAll: () => [], addEventListener() {},
     showModal() {}, close() {},
   };
   ctx.document.getElementById = () => dialog;
@@ -226,51 +90,6 @@ test('a percentage cannot break out of the inline style it is written into', () 
     const n = Number(w);
     assert.ok(Number.isFinite(n) && n >= 0 && n <= 100, `width "${w}" should be a clamped number`);
   }
-});
-
-// --- app.js: shelf placement -------------------------------------------------
-
-test('every jar is placed exactly once, inside the grid', () => {
-  const { placeJars } = loadApp();
-  const jars = Array.from({ length: 9 }, (_, i) => ({ id: i + 1, weight_g: 10 }));
-  const slots = placeJars(jars, 2, 6);
-
-  assert.equal(slots.length, 12);
-  const placed = slots.filter(Boolean);
-  assert.equal(placed.length, 9, 'no jar may be dropped');
-  assert.equal(new Set(placed.map((j) => j.id)).size, 9, 'no jar may be placed twice');
-});
-
-test('jars are dealt across shelves rather than filling the first one', () => {
-  const { placeJars } = loadApp();
-  const jars = Array.from({ length: 4 }, (_, i) => ({ id: i + 1, weight_g: 10 }));
-  const slots = placeJars(jars, 2, 6);
-  const perRow = [slots.slice(0, 6), slots.slice(6)].map((r) => r.filter(Boolean).length);
-  assert.deepEqual(perRow, [2, 2], 'four jars over two shelves should be two and two');
-});
-
-test('placement is stable, so editing one jar does not move the others', () => {
-  const { placeJars } = loadApp();
-  const jars = [{ id: 3, weight_g: 10 }, { id: 8, weight_g: 20 }, { id: 5, weight_g: 30 }];
-  const idsOf = (slots) => slots.map((j) => (j ? j.id : null));
-
-  const first = idsOf(placeJars(jars, 2, 6));
-  // same jars, one edited, and handed over in a different order
-  const edited = [jars[2], { ...jars[0], weight_g: 999 }, jars[1]];
-  assert.deepEqual(idsOf(placeJars(edited, 2, 6)), first);
-});
-
-test('a full shelf spills onto the next instead of dropping jars', () => {
-  const { placeJars } = loadApp();
-  const jars = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, weight_g: 10 }));
-  const slots = placeJars(jars, 2, 6);
-  assert.equal(slots.filter(Boolean).length, 12);
-  assert.equal(slots.filter((s) => s === null).length, 0, 'a full grid should have no gaps');
-});
-
-test('an empty shelf renders no jars and does not throw', () => {
-  const { placeJars } = loadApp();
-  assert.deepEqual(placeJars([], 2, 6).filter(Boolean), []);
 });
 
 // --- app.js: the movement journal --------------------------------------------
@@ -315,82 +134,6 @@ test('eventLine rounds the running total to whole grams', () => {
   assert.match(eventLine({
     created_at: '2026-08-16 21:34:00', delta_g: -2.5, jar_name: 'Mango', total_after_g: 234.5,
   }), /→ 235g$/);
-});
-
-test('the room reserves a left column for the journal, and gives it back on mobile', () => {
-  // The room is a fixed-size composition, so the garland cannot simply flow
-  // beside it: the wall has to grow by exactly the width of the reserved
-  // column. And the mobile view must land back on today's numbers to the
-  // pixel — that parity is the whole reason the query exists.
-  const css = read('style.css').replace(/\/\*[\s\S]*?\*\//g, '');
-  const scene = css.match(/(^|\})\s*\.scene\s*\{([^}]*)\}/);
-  const stack = css.match(/(^|\})\s*\.stack\s*\{([^}]*)\}/);
-  assert.ok(scene && stack);
-  assert.match(scene[2], /width\s*:\s*1000px/);
-  assert.match(scene[2], /min-width\s*:\s*1000px/);
-  assert.match(stack[2], /padding\s*:\s*182px\s+26px\s+0\s+206px/);
-
-  const query = css.match(/@media\s*\(max-width:\s*900px\)\s*\{([\s\S]*?\n\s*\})\s*\n/);
-  assert.ok(query, 'a 900px query should restore the mobile layout');
-  assert.match(query[1], /\.scene\s*\{[^}]*width\s*:\s*820px/);
-  assert.match(query[1], /\.scene\s*\{[^}]*min-width\s*:\s*820px/);
-  assert.match(query[1], /\.stack\s*\{[^}]*padding-left\s*:\s*26px/);
-  assert.match(query[1], /\.hud__log\s*\{[^}]*display\s*:\s*none/);
-  assert.match(query[1], /\.hud\s*\{[^}]*width\s*:\s*auto/);
-});
-
-// renderLog writes into #hud-log; this stub is the smallest thing that lets
-// the pure markup be inspected.
-function logBox(ctx) {
-  const box = { innerHTML: '' };
-  ctx.document.getElementById = (id) => (id === 'hud-log' ? box : null);
-  return box;
-}
-
-test('renderLog hangs one tag per movement, in the order given', () => {
-  const ctx = loadApp();
-  const box = logBox(ctx);
-  ctx.renderLog([
-    { id: 3, delta_g: 77, jar_name: 'MWHS' },
-    { id: 2, delta_g: -2, jar_name: 'Mango' },
-  ]);
-  const tags = box.innerHTML.match(/class="ev"/g) || [];
-  assert.equal(tags.length, 2);
-  assert.ok(box.innerHTML.indexOf('MWHS') < box.innerHTML.indexOf('Mango'), 'order must be preserved');
-  assert.ok(box.innerHTML.includes('+77g'));
-  assert.ok(box.innerHTML.includes('-2g'));
-});
-
-test('renderLog never hangs more than ten tags', () => {
-  const ctx = loadApp();
-  const box = logBox(ctx);
-  const many = Array.from({ length: 25 }, (_, i) => ({ id: i, delta_g: 1, jar_name: `J${i}` }));
-  ctx.renderLog(many);
-  assert.equal((box.innerHTML.match(/class="ev"/g) || []).length, 10);
-});
-
-test('renderLog draws nothing at all when there is no history', () => {
-  const ctx = loadApp();
-  const box = logBox(ctx);
-  box.innerHTML = '<div class="ev">stale</div>';
-  ctx.renderLog([]);
-  assert.equal(box.innerHTML, '', 'an empty journal must leave no empty frame behind');
-});
-
-test('a tag marks additions and removals differently', () => {
-  const ctx = loadApp();
-  const box = logBox(ctx);
-  ctx.renderLog([{ id: 1, delta_g: 5, jar_name: 'Up' }, { id: 2, delta_g: -5, jar_name: 'Down' }]);
-  assert.match(box.innerHTML, /class="d up"/);
-  assert.match(box.innerHTML, /class="d down"/);
-});
-
-test('a jar name containing markup is escaped on its hanging tag', () => {
-  const ctx = loadApp();
-  const box = logBox(ctx);
-  ctx.renderLog([{ id: 1, delta_g: 5, jar_name: '<img src=x onerror=alert(1)>' }]);
-  assert.ok(!box.innerHTML.includes('<img'), 'name must not become an element');
-  assert.ok(box.innerHTML.includes('&lt;img'), 'it should appear as escaped text instead');
 });
 
 // --- app.js: the full history modal ------------------------------------------
@@ -463,13 +206,13 @@ test('the offline notice is not appended inside the sign button', () => {
 
 test('a failed journal load does not stop the jars from rendering', async () => {
   const ctx = loadApp();
-  const shelves = { innerHTML: '', querySelectorAll: () => [] };
+  const given = [];
+  ctx.window.Scene3D = { isMounted: () => true, setJars: (l) => given.push(l) };
   const hudTotal = { textContent: '' };
-  const log = { innerHTML: '' };
+  const last = { textContent: 'stale' };
   ctx.document.getElementById = (id) => {
-    if (id === 'shelves') return shelves;
     if (id === 'hud-total') return hudTotal;
-    if (id === 'hud-log') return log;
+    if (id === 'hud-last') return last;
     return null;
   };
   ctx.Api = {
@@ -479,8 +222,9 @@ test('a failed journal load does not stop the jars from rendering', async () => 
 
   await assert.doesNotReject(ctx.loadAndRender());
 
-  assert.ok(shelves.innerHTML.length > 0, 'the shelves should still render');
-  assert.equal(log.innerHTML, '', 'the log should be left empty rather than throwing');
+  assert.equal(given.length, 1, 'the scene should still get the jars');
+  assert.equal(given[0][0].name, 'MWHS');
+  assert.equal(last.textContent, '', 'the last-move line is cleared rather than throwing');
 });
 
 // --- app.js: stats and runway ---------------------------------------------------
@@ -560,7 +304,6 @@ test('the total sign shows the runway once stats load', async () => {
   const ctx = loadApp();
   const eta = { textContent: '' };
   ctx.document.getElementById = (id) => {
-    if (id === 'shelves') return { innerHTML: '', querySelectorAll: () => [] };
     if (id === 'hud-total') return { textContent: '' };
     if (id === 'hud-eta') return eta;
     return null;
@@ -591,4 +334,56 @@ test('three.js r128 and the two new pixel fonts are served locally', () => {
   for (const f of ['jersey-10-400-latin.woff2', 'jersey-10-400-latin-ext.woff2', 'pixelify-sans-latin.woff2', 'pixelify-sans-latin-ext.woff2']) {
     assert.ok(fs.statSync(path.join(PUBLIC, 'fonts', f)).size > 1000, `${f} should exist`);
   }
+});
+
+// --- app.js: the 3D page -----------------------------------------------------
+
+test('the page loads three.js and the scene before app.js, and no longer the SVG room', () => {
+  const html = read('index.html');
+  const order = ['/vendor/three.min.js', '/stash-model.js', '/tape-label.js', '/scene3d/kit.js', '/scene3d/props.js',
+    '/scene3d/room.js', '/scene3d/jar.js', '/scene3d/stage.js', '/api.js', '/app.js'];
+  let at = -1;
+  for (const src of order) {
+    const i = html.indexOf(`<script src="${src}"></script>`);
+    assert.ok(i > at, `${src} should be loaded, after the previous script`);
+    at = i;
+  }
+  assert.ok(!html.includes('jar-svg.js') && !html.includes('cat.js'), 'the old room scripts are gone');
+  assert.match(html, /<canvas id="scene"/);
+  assert.match(html, /viewport-fit=cover/);
+});
+
+test('without WebGL the jars are listed as buttons that open their card', () => {
+  const ctx = loadApp();
+  const box = { hidden: true, innerHTML: '', querySelectorAll: () => [] };
+  ctx.document.getElementById = (id) => (id === 'fallback' ? box : null);
+  ctx.renderJars([{ id: 3, name: 'Mango', weight_g: 12.5 }]);
+  assert.equal(box.hidden, false);
+  assert.match(box.innerHTML, /<button[^>]*data-id="3"/);
+  assert.ok(box.innerHTML.includes('Mango') && box.innerHTML.includes('12,5 g'));
+});
+
+test('fallbackHtml escapes jar names and says when the shelf is empty', () => {
+  const { fallbackHtml } = loadApp();
+  const html = fallbackHtml([{ id: 1, name: '<img src=x onerror=alert(1)>', weight_g: 1 }]);
+  assert.ok(!html.includes('<img'));
+  assert.ok(html.includes('&lt;img'));
+  assert.ok(fallbackHtml([]).includes('Aucun bocal'));
+});
+
+test('renderLastMove shows the newest movement in ASCII, or nothing', () => {
+  const ctx = loadApp();
+  const last = { textContent: 'x' };
+  ctx.document.getElementById = (id) => (id === 'hud-last' ? last : null);
+  ctx.renderLastMove([{ delta_g: -2, jar_name: 'Mwhs' }, { delta_g: 5, jar_name: 'Old' }]);
+  assert.equal(last.textContent, 'Dernier mouvement : -2g Mwhs');
+  ctx.renderLastMove([]);
+  assert.equal(last.textContent, '');
+});
+
+test('the window preference survives a storage that throws', () => {
+  const ctx = loadApp();
+  ctx.localStorage = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } };
+  assert.equal(ctx.readPref('pixelstash.window', 'sunset'), 'sunset');
+  assert.doesNotThrow(() => ctx.writePref('pixelstash.window', 'night'));
 });

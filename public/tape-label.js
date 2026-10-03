@@ -61,5 +61,14 @@
     x.putImageData(img, 0, 0);
   }
 
-  global.TapeLabel = { TAPE_W, TAPE_H, CSS_SCALE, PALETTE, quantizeToPalette, createCanvas, paint };
+  // On a narrow screen neighbouring jars sit closer than one tape width: shrink
+  // the tapes just enough to leave a 4 px gap, but never below half size.
+  const TAPE_GAP = 4;
+  function tapeScale(spacingPx) {
+    const s = Number(spacingPx) / (TAPE_W * CSS_SCALE + TAPE_GAP);
+    if (!Number.isFinite(s)) return 1;
+    return Math.min(1, Math.max(0.5, s));
+  }
+
+  global.TapeLabel = { TAPE_W, TAPE_H, CSS_SCALE, PALETTE, quantizeToPalette, createCanvas, paint, tapeScale };
 })(window);
