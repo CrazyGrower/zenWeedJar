@@ -58,10 +58,11 @@ test('tapeScale shrinks a tape only as much as it takes to clear its neighbour',
 });
 
 // A stand-in for canvas measureText, proportional to the font size with the
-// advances measured in Chrome for the shipped fonts (Jersey 10 is narrow).
+// advances measured in Chrome for the shipped fonts (Jersey 10 is narrow:
+// "59,4 g" at 15px is 29.7, "23/07" 28.9).
 const measure = (text, font) => {
   const px = Number(font.match(/(\d+)px/)[1]);
-  return String(text).length * px * (font.includes('Jersey') ? 0.33 : 0.47);
+  return String(text).length * px * (font.includes('Jersey') ? 0.36 : 0.47);
 };
 
 test('layoutTape keeps the date beside the weight at full size when there is room', () => {
@@ -101,4 +102,9 @@ test('layoutTape clips a name to the tape width, not to a character count', () =
   assert.ok(l.name.endsWith('.'));
   assert.ok(l.name.length * 7 <= T.TAPE_W - 15, `"${l.name}" should fit between the torn ends`);
   assert.equal(l.dateLine, null, 'no date, nothing to place');
+});
+
+test('the tape writes its date in Jersey 10, whose digits stay legible at that size', () => {
+  const T = load();
+  assert.match(T.DATE_FONT, /Jersey 10/);
 });

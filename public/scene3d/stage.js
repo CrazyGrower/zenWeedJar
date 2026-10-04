@@ -216,7 +216,7 @@
     resize();
     // tape labels are drawn with the pixel fonts: repaint once they arrive
     if (global.document.fonts) {
-      Promise.all([global.document.fonts.load('600 10px "Pixelify Sans"'), global.document.fonts.load('15px "Jersey 10"')])
+      Promise.all([global.document.fonts.load('600 10px "Pixelify Sans"'), global.document.fonts.load('15px "Jersey 10"'), global.document.fonts.load('10px "Stash Digits"')])
         .then(() => { views.forEach((v) => S3.updateJarView(v, v.jar)); resize(); }).catch(() => {});
     }
     tick();

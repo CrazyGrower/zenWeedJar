@@ -478,3 +478,16 @@ test('the scene re-frames when the HUD or the bottom bar changes height', () => 
   assert.ok(observed.includes(hud) && observed.includes(bottom));
   assert.ok(fired >= 1);
 });
+
+// --- digits ------------------------------------------------------------------
+
+test('digits come from Jersey 10 everywhere, since the Pixelify 5 reads as an S or an 8', () => {
+  const css = read('fonts/fonts.css');
+  const face = css.match(/@font-face\s*\{[^}]*font-family:\s*'Stash Digits'[^}]*\}/);
+  assert.ok(face, 'a digits-only face is declared');
+  assert.match(face[0], /jersey-10-400-latin\.woff2/);
+  assert.match(face[0], /unicode-range:\s*U\+0030-0039;/, 'only 0-9, letters stay Pixelify');
+  assert.match(face[0], /size-adjust:/, 'scaled to sit level with the surrounding text');
+  const style = read('style.css');
+  assert.match(style, /--body:\s*'Stash Digits',\s*'Pixelify Sans'/);
+});
