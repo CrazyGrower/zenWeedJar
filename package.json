@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "start": "node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "stamp": "node scripts/stamp-assets.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^11.0.0",
