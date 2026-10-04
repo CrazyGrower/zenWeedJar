@@ -23,15 +23,16 @@
     }
   }
 
-  const NAME_FONT = '600 10px "Pixelify Sans", monospace';
+  const NAME_FONT = '600 10px "Stash Digits", "Pixelify Sans", monospace';
   const WEIGHT_FONT = '15px "Jersey 10", monospace';
-  const DATE_FONT = '8px "Pixelify Sans", monospace';
+  // Jersey, not Pixelify: Pixelify's 5 and 6 read as S and 8 at this size
+  const DATE_FONT = '11px "Jersey 10", monospace';
   // one notch down, so a decimal weight ("59,4 g") still has room for its date
-  const SMALL_FONTS = [['13px "Jersey 10", monospace', '7px "Pixelify Sans", monospace'],
-    ['12px "Jersey 10", monospace', '7px "Pixelify Sans", monospace']];
+  const SMALL_FONTS = [['13px "Jersey 10", monospace', '10px "Jersey 10", monospace'],
+    ['12px "Jersey 10", monospace', '9px "Jersey 10", monospace']];
   const TEXT_L = 7;
-  const TEXT_R = TAPE_W - 8;
-  const TEXT_GAP = 3;
+  const TEXT_R = TAPE_W - 7;
+  const TEXT_GAP = 2;
 
   // Where the text goes, measured rather than counted: the date sits beside
   // the weight, both a notch smaller when the weight is too wide (a "12,5 g"

@@ -5,7 +5,7 @@
   --kraft:#e8d8a6; --kraft-lo:#c8b08a; --cream:#f6e7c8; --amber:#f0b860; --amber-lo:#a86a2a;
   --muted:#d4b283; --ink:#2a1610; --sage:#9ac48f; --rose:#e79a9a;
   --display:'Jersey 10', 'Pixelify Sans', monospace;
-  --body:'Pixelify Sans', 'Silkscreen', ui-monospace, monospace;
+  --body:'Stash Digits', 'Pixelify Sans', 'Silkscreen', ui-monospace, monospace;
   color-scheme:dark;
 }
 *{box-sizing:border-box; margin:0; padding:0;}
