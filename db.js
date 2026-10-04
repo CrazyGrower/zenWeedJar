@@ -20,6 +20,7 @@ export function openDb(dbPath = process.env.DB_PATH || './data/stash.db') {
       indica_pct   REAL,
       notes        TEXT,
       color_tag    TEXT,
+      bud_color    TEXT,
       created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -36,6 +37,11 @@ export function openDb(dbPath = process.env.DB_PATH || './data/stash.db') {
       created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // Databases created before the weed colour existed get the column here;
+  // their jars keep NULL and the front falls back to the cap tint.
+  const cols = db.prepare('PRAGMA table_info(jars)').all().map((c) => c.name);
+  if (!cols.includes('bud_color')) db.exec('ALTER TABLE jars ADD COLUMN bud_color TEXT');
 
   const { n } = db.prepare('SELECT COUNT(*) AS n FROM jars').get();
   if (n === 0) {

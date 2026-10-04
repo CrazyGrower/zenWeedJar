@@ -76,7 +76,7 @@
     const ys = shelfYs();
     const built = S3.buildRoom(root, scene, mode, ys);
     cat = built.cat;
-    dustMat.color.setHex(built.sunset ? 0xffc890 : 0xdfe6ff);
+    dustMat.color.setHex(built.dust);
     const top = ys[ys.length - 1];
     dustTop = top + 1;
     for (let i = 0; i < DN; i++) { dustPos[i * 3] = -0.9 + dr() * 3.2; dustPos[i * 3 + 1] = 0.1 + dr() * (dustTop - 0.1); dustPos[i * 3 + 2] = dr() * 1.3; }
@@ -99,7 +99,9 @@
     slots.forEach((s) => {
       const x = S3.SHELF_X[s.col], y = S3.shelfY(s.shelf, shelves) + 0.05;
       let v = views.get(s.jar.id);
-      if (v && (v.group.position.x !== x || v.baseY !== y)) { S3.disposeJarView(v); views.delete(s.jar.id); v = null; }
+      // a new cap or weed colour is baked into the meshes: build the jar again
+      const recoloured = v && (v.jar.color_tag !== s.jar.color_tag || v.jar.bud_color !== s.jar.bud_color);
+      if (v && (recoloured || v.group.position.x !== x || v.baseY !== y)) { S3.disposeJarView(v); views.delete(s.jar.id); v = null; }
       if (!v) {
         v = S3.createJarView(s.jar, x, y, labelsEl);
         root.add(v.group);
@@ -124,7 +126,9 @@
 
   function setMode(next) {
     if (!renderer) return;
-    mode = next === 'night' ? 'night' : 'sunset';
+    const m = S3.SKY_MODES.includes(next) ? next : 'sunset';
+    if (m === mode) return;
+    mode = m;
     rebuildRoom();
     placeJars(lastJars, new Set());
   }
@@ -207,7 +211,7 @@
     canvas = canvasEl; labelsEl = labels;
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(32, 1, 0.1, 60);
-    mode = opts && opts.mode === 'night' ? 'night' : 'sunset';
+    mode = opts && S3.SKY_MODES.includes(opts.mode) ? opts.mode : 'sunset';
     insets = (opts && opts.insets) || null;
     shelves = M.MIN_SHELVES;
     rebuildRoom();

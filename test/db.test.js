@@ -68,3 +68,19 @@ test('adds jar_events to a database that predates it', () => {
     fs.rmSync(`${file}-shm`, { force: true });
   }
 });
+
+test('an older database gains the bud_color column without losing its jars', () => {
+  const file = path.join(os.tmpdir(), `stash-mig-${process.pid}-${Math.floor(process.hrtime()[1])}.db`);
+  try {
+    const db1 = openDb(file);
+    db1.exec('ALTER TABLE jars DROP COLUMN bud_color');
+    db1.close();
+    const db2 = openDb(file);
+    const cols = db2.prepare('PRAGMA table_info(jars)').all().map((c) => c.name);
+    assert.ok(cols.includes('bud_color'));
+    assert.equal(db2.prepare('SELECT COUNT(*) AS n FROM jars').get().n, 4);
+    db2.close();
+  } finally {
+    for (const s of ['', '-wal', '-shm']) fs.rmSync(`${file}${s}`, { force: true });
+  }
+});

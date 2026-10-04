@@ -8,6 +8,15 @@ function swatchesHtml(current) {
   ).join('')}</fieldset>`;
 }
 
+// The weed colour, picked like the cap. A jar saved before this existed shows
+// the colour it already had on the shelf.
+function budSwatchesHtml(current, capTag) {
+  const chosen = StashModel.budKey(current, capTag);
+  return `<fieldset class="swatches"><legend>WEED</legend>${StashModel.BUD_KEYS.map((k) =>
+    `<label class="swatch swatch--bud" style="--c:${StashModel.budSwatch(k)}" title="${StashModel.BUD_PALETTES[k].label}"><input type="radio" name="bud_color" value="${k}" aria-label="${StashModel.BUD_PALETTES[k].label}"${k === chosen ? ' checked' : ''}><span></span></label>`,
+  ).join('')}</fieldset>`;
+}
+
 async function takeFromJar(jar, n) {
   // the card may have been opened before the last reload landed
   const fresh = jars.find((j) => j.id === jar.id) || jar;
@@ -22,7 +31,7 @@ async function takeFromJar(jar, n) {
 function openForm(jar) {
   const dlg = document.getElementById('form-dialog');
   const editing = !!jar;
-  const j = jar || { name: '', harvest_date: '', weight_g: '', thc_percent: '', indica_pct: '', notes: '', color_tag: CAP_COLORS[0] };
+  const j = jar || { name: '', harvest_date: '', weight_g: '', color_tag: CAP_COLORS[0], bud_color: 'green' };
 
   dlg.innerHTML = `
     <form method="dialog" class="modal">
@@ -30,10 +39,8 @@ function openForm(jar) {
       <div class="row"><label>NOM *</label><input name="name" value="${escapeHtml(j.name)}" required></div>
       <div class="row"><label>RÉCOLTE (ex 13/07)</label><input name="harvest_date" value="${escapeHtml(j.harvest_date || '')}"></div>
       <div class="row"><label>POIDS (g) *</label><input name="weight_g" type="number" step="0.1" min="0" value="${j.weight_g}" required></div>
-      <div class="row"><label>THC %</label><input name="thc_percent" type="number" step="0.1" min="0" value="${j.thc_percent ?? ''}"></div>
-      <div class="row"><label>% INDICA (0-100)</label><input name="indica_pct" type="number" step="1" min="0" max="100" value="${j.indica_pct ?? ''}"></div>
       <div class="row">${swatchesHtml(j.color_tag || CAP_COLORS[0])}</div>
-      <div class="row"><label>NOTES</label><textarea name="notes" rows="2">${escapeHtml(j.notes || '')}</textarea></div>
+      <div class="row">${budSwatchesHtml(j.bud_color, j.color_tag)}</div>
       <div class="actions">
         <button class="btn btn--primary" value="save">${editing ? 'ENREGISTRER' : 'AJOUTER'}</button>
         <button class="btn btn--ghost" value="cancel" formnovalidate>ANNULER</button>
@@ -97,16 +104,8 @@ async function removeJar(jar) {
   }
 }
 
-function clampPct(n) {
-  const v = Number(n);
-  if (!Number.isFinite(v)) return 0;
-  return Math.max(0, Math.min(100, v));
-}
-
 function openDetail(jar) {
   const dlg = document.getElementById('detail-dialog');
-  const indica = jar.indica_pct == null ? null : clampPct(jar.indica_pct);
-  const thc = jar.thc_percent == null ? null : clampPct(jar.thc_percent);
   const weight = Number.isFinite(Number(jar.weight_g)) ? Number(jar.weight_g) : 0;
 
   dlg.innerHTML = `
@@ -122,16 +121,6 @@ function openDetail(jar) {
         <button class="btn btn--take" data-take="1">-1 g</button>
         <button class="btn btn--take" data-take="2">-2 g</button>
       </div></div>
-
-      ${thc == null ? '' : `<div class="row"><label>THC · ${escapeHtml(String(jar.thc_percent))}%</label>
-        <div class="bar"><span style="width:${thc}%"></span></div></div>`}
-
-      ${indica == null ? '' : `<div class="row"><label>INDICA ${indica}% / SATIVA ${100 - indica}%</label>
-        <div class="bar ratio"><div class="i" style="width:${indica}%"></div>
-        <div class="s" style="width:${100 - indica}%"></div></div></div>`}
-
-      ${!jar.notes ? '' : `<div class="row"><label>NOTES</label>
-        <div class="stats__line">${escapeHtml(jar.notes)}</div></div>`}
 
       <div class="actions">
         <button class="btn btn--primary" data-act="adjust">AJUSTER POIDS</button>
@@ -323,14 +312,20 @@ function escapeHtml(s) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-const PREF_MODE_KEY = 'pixelstash.window';
-
-function readPref(key, fallback) {
-  try { return localStorage.getItem(key) || fallback; } catch (err) { return fallback; }
+// The window follows the clock: sunset light at dawn and dusk, day between,
+// night after. ?scene=day (or sunset, night) pins one, to look at it.
+function currentScene(now = new Date(), search = '') {
+  const pinned = new URLSearchParams(search).get('scene');
+  return ['sunset', 'day', 'night'].includes(pinned) ? pinned : StashModel.sceneAt(now);
 }
 
-function writePref(key, value) {
-  try { localStorage.setItem(key, value); } catch (err) { /* private mode: keep the choice for this visit only */ }
+function pageSearch() {
+  return typeof location === 'undefined' ? '' : location.search;
+}
+
+function syncScene() {
+  const S = window.Scene3D;
+  if (S && S.isMounted()) S.setMode(currentScene(new Date(), pageSearch()));
 }
 
 function fallbackHtml(list) {
@@ -364,7 +359,7 @@ function mountScene() {
   // shelves in the band left between them.
   const height = (sel) => { const el = document.querySelector(sel); return el ? el.offsetHeight : 0; };
   const ok = S.mount(canvas, document.getElementById('labels'), {
-    mode: readPref(PREF_MODE_KEY, 'sunset'),
+    mode: currentScene(new Date(), pageSearch()),
     insets: () => ({ top: height('.hud'), bottom: height('.bottom') }),
   });
   if (!ok) { canvas.hidden = true; return false; }
@@ -378,10 +373,6 @@ function mountScene() {
     if (jar) openDetail(jar);
   });
   return true;
-}
-
-function showMode(mode) {
-  document.querySelectorAll('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
 }
 
 function renderHud(list) {
@@ -440,14 +431,10 @@ async function loadAndRender() {
 
 document.addEventListener('DOMContentLoaded', () => {
   mountScene();
-  showMode(readPref(PREF_MODE_KEY, 'sunset'));
   loadAndRender();
+  // setMode does nothing until the light actually changes
+  setInterval(syncScene, 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) syncScene(); });
   document.getElementById('add-btn').addEventListener('click', () => openForm());
   document.getElementById('hud-tag').addEventListener('click', () => openHistory());
-  document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => {
-    const mode = b.dataset.mode;
-    writePref(PREF_MODE_KEY, mode);
-    showMode(mode);
-    if (window.Scene3D && window.Scene3D.isMounted()) window.Scene3D.setMode(mode);
-  }));
 });
