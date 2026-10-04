@@ -8,6 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import vm from 'vm';
 import { fileURLToPath } from 'url';
+import { assetVersion, localAssets } from '../scripts/stamp-assets.mjs';
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const read = (f) => fs.readFileSync(path.join(PUBLIC, f), 'utf8');
@@ -345,7 +346,7 @@ test('the page loads three.js and the scene before app.js, and no longer the SVG
     '/scene3d/room.js', '/scene3d/jar.js', '/scene3d/stage.js', '/api.js', '/app.js'];
   let at = -1;
   for (const src of order) {
-    const i = html.indexOf(`<script src="${src}"></script>`);
+    const i = html.indexOf(`<script src="${src}?v=`);
     assert.ok(i > at, `${src} should be loaded, after the previous script`);
     at = i;
   }
@@ -490,4 +491,18 @@ test('digits come from Jersey 10 everywhere, since the Pixelify 5 reads as an S 
   assert.match(face[0], /size-adjust:/, 'scaled to sit level with the surrounding text');
   const style = read('style.css');
   assert.match(style, /--body:\s*'Stash Digits',\s*'Pixelify Sans'/);
+});
+
+// --- cache busting -----------------------------------------------------------
+
+test('every stylesheet and script the page loads carries the current asset version', () => {
+  // The proxy in front of the NAS caches static files for half a day; a
+  // version in the URL is what makes a deploy reach the phone at once.
+  const html = read('index.html');
+  const version = assetVersion(PUBLIC, html);
+  const refs = localAssets(html);
+  assert.ok(refs.length >= 12, 'the css and every script are listed');
+  for (const r of refs) {
+    assert.equal(r.version, version, `${r.path} should end in ?v=${version} — run npm run stamp`);
+  }
 });

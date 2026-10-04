@@ -21,6 +21,11 @@ npm test
 frontend logic (fill gauge, overflow rule, escaping, shelf placement) run in a
 `vm` context, since the browser files are classic scripts with no module system.
 
+After changing anything under `public/` that the page loads, run
+`npm run stamp`: it puts a content hash on every stylesheet and script in
+`index.html` (`?v=…`) so a deploy gets past the proxy's and the phone's cache.
+`npm test` fails until the stamp is current.
+
 ## Run with Docker
 
 ```bash
