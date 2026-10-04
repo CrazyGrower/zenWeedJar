@@ -115,3 +115,56 @@ test('dropTargets animates everything once, then only newcomers', () => {
   assert.deepEqual(plain(M.dropTargets(new Set([1, 2]), list, false)), [3], 'a new jar drops in on its own');
   assert.deepEqual(plain(M.dropTargets(null, list, true)), [], 'reduced motion: never');
 });
+
+test('budKey keeps a chosen weed colour and falls back to the cap tint', () => {
+  const M = load();
+  for (const k of ['green', 'lime', 'forest', 'purple', 'gold', 'frost']) assert.equal(M.budKey(k, '#79a67e'), k);
+  assert.equal(M.budKey(null, '#b07d9c'), 'purple', 'older jars keep the colour the plum cap gave them');
+  assert.equal(M.budKey(null, '#79a67e'), 'green');
+  assert.equal(M.budKey('toString', '#79a67e'), 'green', 'only own palette keys count');
+  assert.equal(M.budKey('<img>', '#79a67e'), 'green');
+});
+
+test('every weed palette has four shades and a frost tip', () => {
+  const M = load();
+  for (const k of M.BUD_KEYS) {
+    const p = M.BUD_PALETTES[k];
+    assert.equal(p.colors.length, 5, k);
+    assert.ok(p.colors.every((c) => Number.isInteger(c) && c >= 0 && c <= 0xffffff), k);
+    assert.match(M.budSwatch(k), /^#[0-9a-f]{6}$/);
+    assert.ok(p.label.length > 0);
+  }
+  assert.deepEqual(plain(M.budPalette({ bud_color: 'gold', color_tag: '#b07d9c' })), plain(M.BUD_PALETTES.gold.colors));
+});
+
+// Paris; the expected times come from the published ephemeris (±2 min).
+const at = (iso) => new Date(iso);
+test('sceneAt: sunset light around sunrise and sunset, day between, night after', () => {
+  const M = load();
+  // 4 Oct 2026: sunrise ~05:52 UTC, sunset ~17:25 UTC
+  assert.equal(M.sceneAt(at('2026-10-04T03:00:00Z')), 'night');
+  assert.equal(M.sceneAt(at('2026-10-04T06:00:00Z')), 'sunset', 'dawn');
+  assert.equal(M.sceneAt(at('2026-10-04T12:00:00Z')), 'day');
+  assert.equal(M.sceneAt(at('2026-10-04T17:30:00Z')), 'sunset', 'dusk');
+  assert.equal(M.sceneAt(at('2026-10-04T20:00:00Z')), 'night');
+  assert.equal(M.sceneAt(at('2026-10-04T23:30:00Z')), 'night');
+});
+
+test('sceneAt follows the seasons', () => {
+  const M = load();
+  // 21 Jun: sunset ~19:58 UTC; 21 Dec: sunrise ~07:42, sunset ~15:56 UTC
+  assert.equal(M.sceneAt(at('2026-06-21T19:00:00Z')), 'sunset');
+  assert.equal(M.sceneAt(at('2026-06-21T18:00:00Z')), 'day');
+  assert.equal(M.sceneAt(at('2026-06-21T21:00:00Z')), 'night');
+  assert.equal(M.sceneAt(at('2026-12-21T16:20:00Z')), 'sunset');
+  assert.equal(M.sceneAt(at('2026-12-21T17:00:00Z')), 'night');
+  assert.equal(M.sceneAt(at('2026-12-21T07:15:00Z')), 'sunset');
+  assert.equal(M.sceneAt(at('2026-12-21T06:00:00Z')), 'night');
+  assert.equal(M.sceneAt(at('2026-12-21T12:00:00Z')), 'day');
+});
+
+test('sceneAt survives polar day and night', () => {
+  const M = load();
+  assert.equal(M.sceneAt(at('2026-06-21T00:00:00Z'), 78, 15), 'day');
+  assert.equal(M.sceneAt(at('2026-12-21T12:00:00Z'), 78, 15), 'night');
+});

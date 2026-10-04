@@ -248,3 +248,12 @@ test('deleting the last jar records a total of 0, not null', () => {
   const evs = eventsOf(db);
   assert.equal(evs[evs.length - 1].total_after_g, 0);
 });
+
+test('bud_color is stored on create and update, and can be cleared', () => {
+  const db = freshDb();
+  const jar = createJar(db, { name: 'Purple Haze', weight_g: 5, bud_color: 'purple' });
+  assert.equal(jar.bud_color, 'purple');
+  assert.equal(updateJar(db, jar.id, { bud_color: 'frost' }).bud_color, 'frost');
+  assert.equal(updateJar(db, jar.id, { bud_color: null }).bud_color, null);
+  assert.throws(() => createJar(db, { name: 'X', weight_g: 1, bud_color: 3 }), ValidationError);
+});

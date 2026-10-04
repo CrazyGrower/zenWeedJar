@@ -5,7 +5,7 @@
   const M = global.StashModel;
   const T = global.TapeLabel;
   if (!S3 || !M || !T) return;
-  const { THREE, toon, basic, mulberry32, BUD_COLORS, budGeo, pistilGeo, budMat, pistilMat, shared, disposeTree } = S3;
+  const { THREE, toon, basic, mulberry32, budGeo, pistilGeo, budMat, pistilMat, shared, disposeTree } = S3;
 
   const glassMat = shared(new THREE.MeshPhongMaterial({ color: 0xcfe8e2, transparent: true, opacity: 0.2, shininess: 90, specular: 0xffffff, side: THREE.DoubleSide, depthWrite: false }));
   const jarGeo = shared(new THREE.LatheGeometry([[0, 0], [0.36, 0], [0.4, 0.04], [0.4, 0.86], [0.36, 0.93], [0.31, 0.97], [0.31, 1.06]].map(([x, y]) => new THREE.Vector2(x, y)), 18));
@@ -27,7 +27,7 @@
 
     // buds: generated once up to the brim, seeded by id so they never jump,
     // and shown up to the current fill level
-    const palette = BUD_COLORS[M.budTint(jar.color_tag)];
+    const palette = M.budPalette(jar);
     const rnd = mulberry32(Number(jar.id) * 2654435761);
     const buds = [];
     for (let by = 0.07; by < JAR_TOP + 0.06; by += 0.07) for (let i = 0; i < 11; i++) {

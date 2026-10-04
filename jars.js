@@ -1,6 +1,6 @@
 export class ValidationError extends Error {}
 
-const STRING_FIELDS = ['harvest_date', 'notes', 'color_tag'];
+const STRING_FIELDS = ['harvest_date', 'notes', 'color_tag', 'bud_color'];
 const NUMBER_FIELDS = ['thc_percent', 'indica_pct'];
 
 // Clients send JSON, so a field can arrive as any JSON type. Only numbers and
@@ -89,12 +89,12 @@ export function createJar(db, data) {
   const v = validate(data);
   const row = {
     harvest_date: null, thc_percent: null, indica_pct: null,
-    notes: null, color_tag: null, ...v,
+    notes: null, color_tag: null, bud_color: null, ...v,
   };
   return db.transaction(() => {
     const info = db.prepare(`
-      INSERT INTO jars (name, harvest_date, weight_g, thc_percent, indica_pct, notes, color_tag)
-      VALUES (@name, @harvest_date, @weight_g, @thc_percent, @indica_pct, @notes, @color_tag)
+      INSERT INTO jars (name, harvest_date, weight_g, thc_percent, indica_pct, notes, color_tag, bud_color)
+      VALUES (@name, @harvest_date, @weight_g, @thc_percent, @indica_pct, @notes, @color_tag, @bud_color)
     `).run(row);
     const jar = getJar(db, info.lastInsertRowid);
     recordEvent(db, { jar_id: jar.id, jar_name: jar.name, kind: 'add', delta_g: jar.weight_g });
@@ -110,7 +110,8 @@ export function updateJar(db, id, data) {
   return db.transaction(() => {
     db.prepare(`
       UPDATE jars SET name=@name, harvest_date=@harvest_date, weight_g=@weight_g,
-        thc_percent=@thc_percent, indica_pct=@indica_pct, notes=@notes, color_tag=@color_tag
+        thc_percent=@thc_percent, indica_pct=@indica_pct, notes=@notes, color_tag=@color_tag,
+        bud_color=@bud_color
       WHERE id=@id
     `).run({ ...merged, id });
     // Metadata-only edits (name, THC, cap colour) are not movements.

@@ -19,7 +19,7 @@ function loadApp() {
   const ctx = vm.createContext({
     window: {},
     document: { addEventListener() {}, getElementById: () => null, querySelectorAll: () => [], querySelector: () => null },
-    Math, console, Number, String, Array, Object, JSON, Date,
+    Math, console, Number, String, Array, Object, JSON, Date, URLSearchParams,
   });
   vm.runInContext(read('stash-model.js'), ctx);
   ctx.StashModel = ctx.window.StashModel;
@@ -35,7 +35,7 @@ test('escapeHtml neutralises every character that could break out of markup', ()
   assert.equal(escapeHtml('<img src=x onerror=alert(1)>'), '&lt;img src=x onerror=alert(1)&gt;');
 });
 
-test('a jar name and notes containing markup are escaped in the detail modal', () => {
+test('a jar name and date containing markup are escaped in the detail modal', () => {
   const ctx = loadApp();
   let written = '';
   const stubButton = { set onclick(_) {} };
@@ -50,47 +50,39 @@ test('a jar name and notes containing markup are escaped in the detail modal', (
   ctx.document.getElementById = () => dialog;
 
   ctx.openDetail({
-    id: 1, weight_g: 10, color_tag: '#79a67e', thc_percent: null, indica_pct: null,
+    id: 1, weight_g: 10, color_tag: '#79a67e',
     name: '<img src=x onerror=alert(1)>',
     harvest_date: '"><b>d</b>',
-    notes: '<script>alert(2)<\/script>',
   });
 
   assert.ok(!written.includes('<img'), 'name must not become an element');
   assert.ok(!written.includes('<b>'), 'harvest_date must not become an element');
-  assert.ok(!written.includes('<script'), 'notes must not become an element');
   assert.ok(written.includes('&lt;img'), 'it should appear as escaped text instead');
 });
 
-test('a percentage cannot break out of the inline style it is written into', () => {
+test('the jar card shows the stock only: no THC, indica or notes', () => {
   const ctx = loadApp();
-  let written = '';
-  const dialog = {
-    set innerHTML(v) { written = v; },
-    get innerHTML() { return written; },
-    querySelector: () => ({ set onclick(_) {} }),
-    querySelectorAll: () => [], addEventListener() {},
-    showModal() {}, close() {},
-  };
-  ctx.document.getElementById = () => dialog;
+  const dlg = captureDialog(ctx);
+  ctx.openDetail({ id: 1, name: 'X', weight_g: 10, color_tag: '#79a67e', thc_percent: 22, indica_pct: 70, notes: 'earthy' });
+  assert.ok(!/THC|INDICA|SATIVA|NOTES|earthy/.test(dlg.html));
+});
 
-  ctx.openDetail({
-    id: 1, weight_g: 10, color_tag: '#79a67e', notes: null,
-    name: 'X', harvest_date: '01/01',
-    thc_percent: '50" onmouseover="alert(1)', indica_pct: 999,
-  });
+test('the form asks for the cap and the weed colour, and no longer for THC, indica or notes', () => {
+  const ctx = loadApp();
+  const dlg = captureDialog(ctx);
+  ctx.openForm();
+  assert.ok(!/thc_percent|indica_pct|name="notes"/.test(dlg.html));
+  assert.match(dlg.html, /name="color_tag"/);
+  assert.match(dlg.html, /value="green"[^>]*checked/, 'a new jar starts green');
+  ctx.openForm({ id: 2, name: 'Liver', weight_g: 5, color_tag: '#b07d9c', bud_color: null });
+  assert.match(dlg.html, /value="purple"[^>]*checked/, 'an older jar shows the colour it already had');
+});
 
-  // The crafted value may appear as escaped text in the label — that's inert.
-  // What must never appear is an unescaped quote closing the style attribute.
-  assert.ok(!written.includes('onmouseover="'), 'a crafted percent must not close the style attribute');
-  assert.ok(written.includes('onmouseover=&quot;'), 'it should survive as escaped text in the label');
-
-  const widths = [...written.matchAll(/style="width:([^"]*)%"/g)].map((m) => m[1]);
-  assert.ok(widths.length > 0, 'the bars should have been rendered');
-  for (const w of widths) {
-    const n = Number(w);
-    assert.ok(Number.isFinite(n) && n >= 0 && n <= 100, `width "${w}" should be a clamped number`);
-  }
+test('budSwatchesHtml offers every weed colour once', () => {
+  const { budSwatchesHtml } = loadApp();
+  const html = budSwatchesHtml('frost', '#79a67e');
+  assert.equal((html.match(/name="bud_color"/g) || []).length, 6);
+  assert.match(html, /value="frost"[^>]*checked/);
 });
 
 // --- app.js: the movement journal --------------------------------------------
@@ -383,11 +375,12 @@ test('renderLastMove shows the newest movement in ASCII, or nothing', () => {
   assert.equal(last.textContent, '');
 });
 
-test('the window preference survives a storage that throws', () => {
-  const ctx = loadApp();
-  ctx.localStorage = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } };
-  assert.equal(ctx.readPref('pixelstash.window', 'sunset'), 'sunset');
-  assert.doesNotThrow(() => ctx.writePref('pixelstash.window', 'night'));
+test('currentScene follows the clock unless ?scene= pins one', () => {
+  const { currentScene } = loadApp();
+  assert.equal(currentScene(new Date('2026-10-04T12:00:00Z'), ''), 'day');
+  assert.equal(currentScene(new Date('2026-10-04T23:00:00Z'), ''), 'night');
+  assert.equal(currentScene(new Date('2026-10-04T12:00:00Z'), '?scene=night'), 'night');
+  assert.equal(currentScene(new Date('2026-10-04T12:00:00Z'), '?scene=nope'), 'day');
 });
 
 // --- app.js: the jar card and the form ---------------------------------------
@@ -438,7 +431,7 @@ test('mountScene tells the scene how much of the canvas the HUD and the bottom b
   const ctx = loadApp();
   let opts = null;
   ctx.window.Scene3D = { mount: (c, l, o) => { opts = o; return true; }, onJarClick() {} };
-  ctx.localStorage = { getItem: () => 'night', setItem() {} };
+  ctx.location = { search: '?scene=night' };
   ctx.document.getElementById = (id) => (id === 'scene' ? {} : id === 'labels' ? {} : null);
   ctx.document.querySelector = (sel) => (sel === '.hud' ? { offsetHeight: 104 } : sel === '.bottom' ? { offsetHeight: 136 } : null);
   assert.equal(ctx.mountScene(), true);
