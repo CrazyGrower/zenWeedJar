@@ -139,6 +139,8 @@
       name: clip(jar.name, NAME_MAX) || 'Sans nom',
       weight: formatTapeGrams(jar.weight_g),
       date: clip(jar.harvest_date, DATE_MAX),
+      // someone else's jar: the tape gets a red edge
+      ...(jar.owner === 'other' ? { other: true } : {}),
     };
   }
 

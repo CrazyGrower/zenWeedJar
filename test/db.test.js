@@ -84,3 +84,18 @@ test('an older database gains the bud_color column without losing its jars', () 
     for (const s of ['', '-wal', '-shm']) fs.rmSync(`${file}${s}`, { force: true });
   }
 });
+
+test('an older database gains the owner column, every jar yours', () => {
+  const file = path.join(os.tmpdir(), `stash-own-${process.pid}-${Math.floor(process.hrtime()[1])}.db`);
+  try {
+    const db1 = openDb(file);
+    db1.exec('ALTER TABLE jars DROP COLUMN owner');
+    db1.close();
+    const db2 = openDb(file);
+    const owners = db2.prepare('SELECT owner FROM jars').all().map((r) => r.owner);
+    assert.deepEqual(owners, ['self', 'self', 'self', 'self']);
+    db2.close();
+  } finally {
+    for (const s of ['', '-wal', '-shm']) fs.rmSync(`${file}${s}`, { force: true });
+  }
+});

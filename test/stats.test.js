@@ -134,3 +134,11 @@ test('only sharing still gives a run-out date', () => {
   assert.equal(s.days_left, 237);
   assert.equal(s.trend_pct, null);
 });
+
+test('someone else\'s jars count in the stash, and say how much is theirs', () => {
+  const db = freshDb();
+  db.prepare("UPDATE jars SET owner = 'other' WHERE name = 'Liver'").run(); // 55g
+  const s = computeStats(db, { now: NOW });
+  assert.equal(s.total_g, 237);
+  assert.equal(s.others_g, 55);
+});

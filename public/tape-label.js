@@ -5,8 +5,9 @@
   const TAPE_W = 64;
   const TAPE_H = 27;
   const CSS_SCALE = 2;
-  // [r, g, b, alpha out]: tape, tape shade, ink, date brown
-  const PALETTE = [[239, 228, 196, 235], [214, 198, 156, 235], [42, 22, 16, 255], [120, 84, 52, 255]];
+  // [r, g, b, alpha out]: tape, tape shade, ink, date brown, the red edge of
+  // someone else's jar
+  const PALETTE = [[239, 228, 196, 235], [214, 198, 156, 235], [42, 22, 16, 255], [120, 84, 52, 255], [204, 48, 48, 255]];
 
   function quantizeToPalette(data, palette, alphaCut = 110) {
     for (let i = 0; i < data.length; i += 4) {
@@ -79,6 +80,7 @@
     x.lineTo(TAPE_W - 4, TAPE_H - 3);
     for (let i = 4; i >= 0; i--) x.lineTo(TAPE_W - (i % 2 ? 2 : 5), 3 + i * 5);
     x.closePath(); x.fillStyle = 'rgb(239,228,196)'; x.fill();
+    if (lines.other) { x.strokeStyle = 'rgb(204,48,48)'; x.lineWidth = 1.5; x.stroke(); }
     x.fillStyle = 'rgb(214,198,156)'; x.fillRect(4, 3, TAPE_W - 8, 1); x.fillRect(4, TAPE_H - 4, TAPE_W - 8, 1);
     x.fillStyle = 'rgb(42,22,16)'; x.textBaseline = 'alphabetic'; x.textAlign = 'left';
     const l = layoutTape(lines, (text, font) => { x.font = font; return x.measureText(text).width; });

@@ -25,6 +25,7 @@ body{background:var(--night); color:var(--cream); font-family:var(--body); overf
   background:var(--kraft); color:var(--ink); border:3px solid var(--wood); box-shadow:0 4px 0 rgba(0,0,0,.4);
   font-family:var(--body); font-size:16px; cursor:pointer;}
 .fallback__jar b{font-family:var(--display); font-weight:400; font-size:26px;}
+.fallback__jar--other{border-color:#cc3030;}
 .fallback__empty{color:var(--muted); font-size:14px; text-align:center; padding:24px;}
 
 .hud{position:absolute; left:0; right:0; top:0; display:flex; justify-content:space-between; align-items:flex-start; gap:12px;
@@ -62,12 +63,19 @@ dialog::backdrop{background:rgba(14,8,18,.7);}
 .modal input{width:100%; font-family:var(--body); font-size:16px; background:#2b1a12; color:var(--cream);
   border:2px solid var(--edge); padding:10px;}
 .modal .weight{font-family:var(--display); font-size:44px; line-height:.9; color:var(--amber);}
-.take{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px;}
 .for{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px;}
 .stepper{display:grid; grid-template-columns:56px minmax(0,1fr) 56px; gap:10px;}
 .modal .stepper input{font-family:var(--display); font-size:32px; line-height:1; text-align:center; padding:4px 8px;}
 .adjust__preview{font-family:var(--display); font-size:28px; color:var(--amber); text-align:center; min-height:32px; white-space:pre;}
 .swatches{border:0; display:flex; flex-wrap:wrap; gap:10px;}
+.owners{border:0; display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px;}
+.owners legend{grid-column:1 / -1;}
+.owner{position:relative; cursor:pointer;}
+.owner input{position:absolute; opacity:0; inset:0; width:100%; height:100%; margin:0; cursor:pointer;}
+.owner span{display:flex; align-items:center; justify-content:center; min-height:44px; padding:8px 10px;
+  font-family:var(--body); font-size:15px; border:3px solid var(--edge); color:var(--muted);}
+.owner input:checked + span{background:var(--cream); color:var(--ink); box-shadow:0 4px 0 #8a6a3a;}
+.owner input:focus-visible + span{outline:3px dashed var(--amber); outline-offset:3px;}
 .swatch{position:relative; width:44px; height:44px; cursor:pointer;}
 .swatch input{position:absolute; opacity:0; inset:0; width:100%; height:100%; margin:0; cursor:pointer;}
 .swatch span{display:block; width:100%; height:100%; background:var(--c); border:4px solid #120a06;}

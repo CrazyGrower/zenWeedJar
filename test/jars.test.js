@@ -282,3 +282,12 @@ test('an unknown reason is rejected', () => {
   assert.throws(() => updateJar(db, jar.id, { weight_g: 70, reason: ['share'] }), ValidationError);
   assert.equal(getJar(db, jar.id).weight_g, 77);
 });
+
+test('a jar is yours unless created as someone else\'s, and the owner can change', () => {
+  const db = freshDb();
+  assert.equal(createJar(db, { name: 'Mine', weight_g: 5 }).owner, 'self');
+  const theirs = createJar(db, { name: 'Theirs', weight_g: 5, owner: 'other' });
+  assert.equal(theirs.owner, 'other');
+  assert.equal(updateJar(db, theirs.id, { owner: 'self' }).owner, 'self');
+  assert.throws(() => createJar(db, { name: 'X', weight_g: 1, owner: 'bob' }), ValidationError);
+});
