@@ -534,3 +534,32 @@ test('statsBody shows shared grams only when there are some', () => {
   assert.match(html, /PARTAGÉ \(30J\)/);
   assert.match(html, /3\.5 g/);
 });
+
+// --- the adjust dialog -------------------------------------------------------
+
+test('parseGrams takes a comma or a dot, and refuses junk and zero', () => {
+  const { parseGrams } = loadApp();
+  assert.equal(parseGrams('2,5'), 2.5);
+  assert.equal(parseGrams(' 3.25 '), 3.3);
+  assert.equal(parseGrams('10'), 10);
+  for (const bad of ['', '0', '-2', 'abc', '1,2,3', '2g', null]) assert.equal(parseGrams(bad), null, `${bad}`);
+});
+
+test('adjustTarget adds or takes, never below zero', () => {
+  const { adjustTarget } = loadApp();
+  assert.equal(adjustTarget(10, 'take', '2,5'), 7.5);
+  assert.equal(adjustTarget(10, 'add', '5'), 15);
+  assert.equal(adjustTarget(1, 'take', '3'), 0);
+  assert.equal(adjustTarget(0.1, 'add', '0,2'), 0.3, 'no float noise');
+  assert.equal(adjustTarget(10, 'take', 'x'), null);
+});
+
+test('the adjust dialog is a real form, escaped, with the share tag when sharing', () => {
+  const ctx = loadApp();
+  const dlg = captureDialog(ctx);
+  ctx.openAdjust({ id: 1, name: '<b>Mango</b>', weight_g: 65 }, 'share');
+  assert.ok(!dlg.html.includes('<b>Mango'), 'the name is escaped');
+  assert.match(dlg.html, /PARTAGE/);
+  assert.match(dlg.html, /inputmode="decimal"/);
+  assert.match(dlg.html, /data-mode="take"[^>]*aria-checked="true"/);
+});
