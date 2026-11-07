@@ -17,11 +17,17 @@ function budSwatchesHtml(current, capTag) {
   ).join('')}</fieldset>`;
 }
 
-async function takeFromJar(jar, n) {
+// 'share' marks grams that went to someone else: the server keeps them out of
+// the consumption stats. 'self' is the default and is not sent at all.
+function withReason(data, reason) {
+  return reason === 'share' ? { ...data, reason } : data;
+}
+
+async function takeFromJar(jar, n, reason = 'self') {
   // the card may have been opened before the last reload landed
   const fresh = jars.find((j) => j.id === jar.id) || jar;
   try {
-    await Api.update(jar.id, { weight_g: StashModel.takeGrams(fresh.weight_g, n) });
+    await Api.update(jar.id, withReason({ weight_g: StashModel.takeGrams(fresh.weight_g, n) }, reason));
   } catch (err) {
     alert(err.message);
   }
@@ -78,14 +84,15 @@ function openForm(jar) {
   dlg.showModal();
 }
 
-async function adjustWeight(jar) {
-  const input = prompt(`Ajuster le poids de ${jar.name} (ex -2 pour retirer 2g, +5 pour ajouter)`, '-2');
+async function adjustWeight(jar, reason = 'self') {
+  const label = reason === 'share' ? ' — PARTAGE' : '';
+  const input = prompt(`Ajuster le poids de ${jar.name}${label} (ex -2 pour retirer 2g, +5 pour ajouter)`, '-2');
   if (input == null) return;
   const delta = Number(input);
   if (!Number.isFinite(delta)) return alert('Valeur invalide');
   const next = Math.max(0, jar.weight_g + delta);
   try {
-    await Api.update(jar.id, { weight_g: next });
+    await Api.update(jar.id, withReason({ weight_g: next }, reason));
     await loadAndRender();
   } catch (err) {
     alert(err.message);
@@ -116,6 +123,11 @@ function openDetail(jar) {
       <div class="row"><label>POIDS</label>
         <div class="weight">${escapeHtml(StashModel.formatTapeGrams(weight))}</div></div>
 
+      <div class="row"><label>POUR</label><div class="for" role="radiogroup" aria-label="Pour qui">
+        <button class="btn btn--for btn--for-on" data-for="self" role="radio" aria-checked="true">MOI</button>
+        <button class="btn btn--for" data-for="share" role="radio" aria-checked="false">PARTAGE</button>
+      </div></div>
+
       <div class="row"><label>RETIRER</label><div class="take">
         <button class="btn btn--take" data-take="0.5">-0,5 g</button>
         <button class="btn btn--take" data-take="1">-1 g</button>
@@ -130,12 +142,26 @@ function openDetail(jar) {
       </div>
     </div>`;
 
+  // Back to MOI each time the card opens: sharing is the exception, and a
+  // remembered PARTAGE would silently hide your own consumption.
+  let reason = 'self';
+  const forButtons = dlg.querySelectorAll('[data-for]');
+  forButtons.forEach((b) => {
+    b.onclick = () => {
+      reason = b.dataset.for;
+      forButtons.forEach((o) => {
+        const on = o.dataset.for === reason;
+        o.className = `btn btn--for${on ? ' btn--for-on' : ''}`;
+        o.setAttribute('aria-checked', String(on));
+      });
+    };
+  });
   dlg.querySelector('[data-act="close"]').onclick = () => dlg.close();
   dlg.querySelector('[data-act="edit"]').onclick = () => { dlg.close(); openForm(jar); };
-  dlg.querySelector('[data-act="adjust"]').onclick = () => { dlg.close(); adjustWeight(jar); };
+  dlg.querySelector('[data-act="adjust"]').onclick = () => { dlg.close(); adjustWeight(jar, reason); };
   dlg.querySelector('[data-act="delete"]').onclick = () => { dlg.close(); removeJar(jar); };
   dlg.querySelectorAll('[data-take]').forEach((b) => {
-    b.onclick = () => { dlg.close(); takeFromJar(jar, Number(b.dataset.take)); };
+    b.onclick = () => { dlg.close(); takeFromJar(jar, Number(b.dataset.take), reason); };
   });
   if (window.Scene3D && window.Scene3D.select) {
     window.Scene3D.select(jar.id);
@@ -167,9 +193,15 @@ function formatStamp(created_at) {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+// A shared withdrawal says so, so the journal explains why it is missing
+// from the consumption stats.
+function eventName(ev) {
+  return ev.kind === 'share' ? `${ev.jar_name} (PARTAGE)` : ev.jar_name;
+}
+
 function eventLine(ev) {
   const total = Math.round(Number(ev.total_after_g) || 0);
-  return `${formatStamp(ev.created_at)} · ${formatDelta(ev.delta_g)} · ${ev.jar_name} · → ${total}g`;
+  return `${formatStamp(ev.created_at)} · ${formatDelta(ev.delta_g)} · ${eventName(ev)} · → ${total}g`;
 }
 
 // The newest movement, in one line under the title. textContent, not HTML:
@@ -178,7 +210,7 @@ function renderLastMove(events) {
   const el = document.getElementById('hud-last');
   if (!el) return;
   const ev = (events || [])[0];
-  el.textContent = ev ? `Dernier mouvement : ${formatDelta(ev.delta_g)} ${ev.jar_name}` : '';
+  el.textContent = ev ? `Dernier mouvement : ${formatDelta(ev.delta_g)} ${eventName(ev)}` : '';
 }
 
 // --- stats and runway --------------------------------------------------------
@@ -229,6 +261,12 @@ function statsBody(stats, now = new Date()) {
     <div class="row"><label>7 DERNIERS JOURS VS MOYENNE</label>
       <div class="stats__line">${formatTrend(stats.trend_pct)}</div></div>`;
 
+  // Shared grams are not consumption, but they do bring the run-out date
+  // closer — this line says why the date and the rate don't line up.
+  const shared = !(Number(stats.shared_g) > 0) ? '' : `
+    <div class="row"><label>PARTAGÉ (30J) · HORS CONSO</label>
+      <div class="stats__line">${formatGrams(stats.shared_g)} g · compté dans la date de fin</div></div>`;
+
   const max = Math.max(0, ...stats.daily.map((d) => d.g));
   const bars = stats.daily.map((d) => {
     const h = max > 0 ? Math.round((d.g / max) * 100) : 0;
@@ -245,7 +283,7 @@ function statsBody(stats, now = new Date()) {
       <div class="stats__line">${stats.top
         .map((t) => `${escapeHtml(t.name)} ${formatGrams(t.g)}g`).join(' · ')}</div></div>`;
 
-  return `${head}${rate}
+  return `${head}${rate}${shared}
     <div class="row"><label>14 DERNIERS JOURS</label><div class="stats__bars">${bars}</div></div>
     ${top}`;
 }

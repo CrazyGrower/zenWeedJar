@@ -111,3 +111,26 @@ test('top lists the three most consumed varieties over 30 days', () => {
     { name: 'Mango', g: 10 }, { name: 'Mwhs', g: 8 }, { name: 'Liver', g: 1 },
   ]);
 });
+
+test('shared grams bring the run-out date closer but are not consumption', () => {
+  const db = freshDb();
+  event(db, { delta_g: -10, at: daysAgo(10) });
+  event(db, { kind: 'share', delta_g: -10, at: daysAgo(2), name: 'Liver' });
+  const s = computeStats(db, { now: NOW });
+  assert.equal(s.consumed_g, 10);
+  assert.equal(s.per_day_g, 1);
+  assert.equal(s.shared_g, 10);
+  assert.equal(s.outflow_per_day_g, 2);
+  assert.equal(s.days_left, 237 / 2);
+  assert.equal(s.daily.reduce((n, d) => n + d.g, 0), 10, 'the bars show only your consumption');
+  assert.deepEqual(s.top.map((t) => t.name), ['Mango']);
+});
+
+test('only sharing still gives a run-out date', () => {
+  const db = freshDb();
+  event(db, { kind: 'share', delta_g: -10, at: daysAgo(10) });
+  const s = computeStats(db, { now: NOW });
+  assert.equal(s.per_day_g, 0);
+  assert.equal(s.days_left, 237);
+  assert.equal(s.trend_pct, null);
+});
