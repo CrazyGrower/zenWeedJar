@@ -333,6 +333,17 @@ function runwayDate(days_left, now = new Date()) {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
 
+// Under the total on the sign: the day the stash runs out, which reads faster
+// than a count of days. The year only when it is not this one — the sign is
+// narrow, and "16/12" needs no more.
+function hudRunway(stats, now = new Date()) {
+  if (!stats || !stats.ready || stats.days_left == null) return '';
+  const d = new Date(now.getTime() + stats.days_left * DAY_MS);
+  const p = (n) => String(n).padStart(2, '0');
+  const year = d.getFullYear() === now.getFullYear() ? '' : `/${String(d.getFullYear()).slice(2)}`;
+  return `jusqu'au ${p(d.getDate())}/${p(d.getMonth() + 1)}${year}`;
+}
+
 function statsBody(stats, now = new Date()) {
   const runway = formatRunway(stats);
   const head = !stats.ready
@@ -546,7 +557,7 @@ async function loadAndRender() {
   const eta = document.getElementById('hud-eta');
   if (eta) {
     try {
-      eta.textContent = formatRunway(await Api.stats());
+      eta.textContent = hudRunway(await Api.stats());
     } catch (err) {
       eta.textContent = '';
     }
