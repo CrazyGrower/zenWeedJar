@@ -499,3 +499,38 @@ test('every stylesheet and script the page loads carries the current asset versi
     assert.equal(r.version, version, `${r.path} should end in ?v=${version} — run npm run stamp`);
   }
 });
+
+// --- shared withdrawals ------------------------------------------------------
+
+test('the jar card offers MOI and PARTAGE, MOI picked', () => {
+  const ctx = loadApp();
+  const dlg = captureDialog(ctx);
+  ctx.openDetail({ id: 1, name: 'Mango', weight_g: 65, color_tag: '#e2a04c' });
+  assert.match(dlg.html, /data-for="self"[^>]*aria-checked="true"/);
+  assert.match(dlg.html, /data-for="share"[^>]*aria-checked="false"/);
+});
+
+test('takeFromJar sends the share reason only for a shared take', async () => {
+  const ctx = loadApp();
+  const calls = [];
+  ctx.document.getElementById = () => ({ textContent: '', hidden: true, innerHTML: '', querySelectorAll: () => [] });
+  ctx.Api = { update: async (id, data) => { calls.push(data); }, list: async () => [], events: async () => [], stats: async () => ({}) };
+  await ctx.takeFromJar({ id: 7, weight_g: 10 }, 1, 'share');
+  await ctx.takeFromJar({ id: 7, weight_g: 10 }, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [{ weight_g: 9, reason: 'share' }, { weight_g: 9 }]);
+});
+
+test('the journal marks a shared withdrawal', () => {
+  const { eventLine } = loadApp();
+  const line = eventLine({ created_at: '2026-10-02 12:00:00', delta_g: -1, jar_name: 'Mango', kind: 'share', total_after_g: 64 });
+  assert.match(line, /Mango \(PARTAGE\)/);
+  assert.doesNotMatch(eventLine({ created_at: '2026-10-02 12:00:00', delta_g: -1, jar_name: 'Mango', kind: 'adjust', total_after_g: 64 }), /PARTAGE/);
+});
+
+test('statsBody shows shared grams only when there are some', () => {
+  const { statsBody } = loadApp();
+  assert.doesNotMatch(statsBody(READY), /PARTAGÉ/);
+  const html = statsBody({ ...READY, shared_g: 3.5 });
+  assert.match(html, /PARTAGÉ \(30J\)/);
+  assert.match(html, /3\.5 g/);
+});

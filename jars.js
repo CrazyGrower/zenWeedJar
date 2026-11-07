@@ -102,11 +102,20 @@ export function createJar(db, data) {
   })();
 }
 
+// Why grams left a jar. 'self' (the default) is consumption; 'share' went to
+// someone else: it still empties the stash, so it counts toward the run-out
+// date, but not toward what you smoke.
+const REASONS = ['self', 'share'];
+
 export function updateJar(db, id, data) {
   const existing = getJar(db, id);
   if (!existing) return null;
+  const reason = data.reason == null ? 'self' : data.reason;
+  if (!REASONS.includes(reason)) throw new ValidationError(`reason must be one of ${REASONS.join(', ')}`);
   const merged = { ...existing, ...validate(data, { partial: true }) };
   const delta = merged.weight_g - existing.weight_g;
+  // Only a withdrawal can be shared; adding grams "for someone" is a restock.
+  const kind = reason === 'share' && delta < 0 ? 'share' : 'adjust';
   return db.transaction(() => {
     db.prepare(`
       UPDATE jars SET name=@name, harvest_date=@harvest_date, weight_g=@weight_g,
@@ -116,7 +125,7 @@ export function updateJar(db, id, data) {
     `).run({ ...merged, id });
     // Metadata-only edits (name, THC, cap colour) are not movements.
     if (delta !== 0) {
-      recordEvent(db, { jar_id: id, jar_name: merged.name, kind: 'adjust', delta_g: delta });
+      recordEvent(db, { jar_id: id, jar_name: merged.name, kind, delta_g: delta });
     }
     return getJar(db, id);
   })();

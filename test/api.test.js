@@ -112,3 +112,10 @@ test('GET /api/stats returns the stash total and a not-ready estimate on a fresh
   assert.equal(res.body.days_left, null);
   assert.equal(res.body.daily.length, 14);
 });
+
+test('PUT with an unknown reason is a 400', async () => {
+  const app = createApp(openDb(':memory:'));
+  const res = await request(app).put('/api/jars/1').send({ weight_g: 10, reason: 'gift' });
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /reason/);
+});

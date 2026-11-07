@@ -8,6 +8,9 @@ const DAILY_BARS = 14;
 // and counting it would let one deleted jar wreck the estimate; a finished jar
 // is adjusted to 0 first, so its last grams are already counted.
 const CONSUMED = "kind = 'adjust' AND delta_g < 0";
+// What leaves the stash: consumption plus what was shared. Only the run-out
+// date uses it — sharing empties the jars but is not your consumption.
+const OUTFLOW = `(${CONSUMED}) OR kind = 'share'`;
 
 // SQLite stores created_at as "YYYY-MM-DD HH:MM:SS" in UTC, so cutoffs are
 // written the same way and compared as strings.
@@ -15,11 +18,15 @@ function sqlStamp(date) {
   return date.toISOString().slice(0, 19).replace('T', ' ');
 }
 
-function consumedSince(db, since) {
+function sumSince(db, where, since) {
   return db.prepare(`
     SELECT COALESCE(-SUM(delta_g), 0) AS g FROM jar_events
-    WHERE ${CONSUMED} AND created_at >= ?
+    WHERE (${where}) AND created_at >= ?
   `).get(sqlStamp(since)).g;
+}
+
+function consumedSince(db, since) {
+  return sumSince(db, CONSUMED, since);
 }
 
 export function computeStats(db, { now = new Date() } = {}) {
@@ -34,8 +41,10 @@ export function computeStats(db, { now = new Date() } = {}) {
   const since = new Date(now - WINDOW_DAYS * DAY_MS);
   const consumed_g = consumedSince(db, since);
   const per_day_g = window_days > 0 ? consumed_g / window_days : 0;
+  const shared_g = sumSince(db, "kind = 'share'", since);
+  const outflow_per_day_g = window_days > 0 ? sumSince(db, OUTFLOW, since) / window_days : 0;
   const ready = window_days >= MIN_DAYS;
-  const days_left = ready && per_day_g > 0 ? total_g / per_day_g : null;
+  const days_left = ready && outflow_per_day_g > 0 ? total_g / outflow_per_day_g : null;
 
   const trendDays = Math.min(TREND_DAYS, window_days);
   const recent = trendDays > 0 ? consumedSince(db, new Date(now - TREND_DAYS * DAY_MS)) / trendDays : 0;
@@ -60,5 +69,8 @@ export function computeStats(db, { now = new Date() } = {}) {
     GROUP BY jar_name ORDER BY g DESC LIMIT 3
   `).all(sqlStamp(since));
 
-  return { total_g, ready, window_days, consumed_g, per_day_g, days_left, trend_pct, daily, top };
+  return {
+    total_g, ready, window_days, consumed_g, per_day_g, shared_g, outflow_per_day_g,
+    days_left, trend_pct, daily, top,
+  };
 }

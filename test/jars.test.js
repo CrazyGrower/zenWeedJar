@@ -257,3 +257,28 @@ test('bud_color is stored on create and update, and can be cleared', () => {
   assert.equal(updateJar(db, jar.id, { bud_color: null }).bud_color, null);
   assert.throws(() => createJar(db, { name: 'X', weight_g: 1, bud_color: 3 }), ValidationError);
 });
+
+test('a shared withdrawal is recorded as a share, not an adjust', () => {
+  const db = freshDb();
+  const jar = listJars(db).find((j) => j.name === 'Mwhs'); // 77g
+  updateJar(db, jar.id, { weight_g: 75, reason: 'share' });
+  const [ev] = eventsOf(db);
+  assert.equal(ev.kind, 'share');
+  assert.equal(ev.delta_g, -2);
+  assert.equal(getJar(db, jar.id).weight_g, 75, 'the jar still loses the grams');
+});
+
+test('a "shared" upward change is just a restock adjust', () => {
+  const db = freshDb();
+  const jar = listJars(db).find((j) => j.name === 'Mwhs');
+  updateJar(db, jar.id, { weight_g: 80, reason: 'share' });
+  assert.equal(eventsOf(db)[0].kind, 'adjust');
+});
+
+test('an unknown reason is rejected', () => {
+  const db = freshDb();
+  const jar = listJars(db).find((j) => j.name === 'Mwhs');
+  assert.throws(() => updateJar(db, jar.id, { weight_g: 70, reason: 'gift' }), ValidationError);
+  assert.throws(() => updateJar(db, jar.id, { weight_g: 70, reason: ['share'] }), ValidationError);
+  assert.equal(getJar(db, jar.id).weight_g, 77);
+});
