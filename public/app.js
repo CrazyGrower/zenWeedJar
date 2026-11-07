@@ -84,20 +84,107 @@ function openForm(jar) {
   dlg.showModal();
 }
 
-async function adjustWeight(jar, reason = 'self') {
-  const label = reason === 'share' ? ' — PARTAGE' : '';
-  const input = prompt(`Ajuster le poids de ${jar.name}${label} (ex -2 pour retirer 2g, +5 pour ajouter)`, '-2');
-  if (input == null) return;
-  const delta = Number(input);
-  if (!Number.isFinite(delta)) return alert('Valeur invalide');
-  const next = Math.max(0, jar.weight_g + delta);
-  try {
-    await Api.update(jar.id, withReason({ weight_g: next }, reason));
+// Reads what was typed in the adjust box. A French phone keyboard gives a
+// comma, so both separators count; anything else, or zero, is no amount.
+function parseGrams(text) {
+  const t = String(text == null ? '' : text).trim().replace(',', '.');
+  if (!/^\d*\.?\d+$|^\d+\.$/.test(t)) return null;
+  const n = Math.round(Number(t) * 10) / 10;
+  return n > 0 ? n : null;
+}
+
+// The weight the jar ends at, never below zero; null when there is no amount.
+function adjustTarget(weight_g, mode, text) {
+  const n = parseGrams(text);
+  if (n == null) return null;
+  const w = Number(weight_g) || 0;
+  return mode === 'add' ? Math.round((w + n) * 10) / 10 : StashModel.takeGrams(w, n);
+}
+
+function openAdjust(jar, reason = 'self') {
+  const dlg = document.getElementById('form-dialog');
+  const fresh = () => jars.find((j) => j.id === jar.id) || jar;
+  let mode = 'take';
+
+  dlg.innerHTML = `
+    <form method="dialog" class="modal" novalidate>
+      <h2>AJUSTER</h2>
+      <div class="sub">${escapeHtml(jar.name)}${reason === 'share' ? '<span data-share> · PARTAGE</span>' : ''}</div>
+
+      <div class="row"><div class="for" role="radiogroup" aria-label="Sens">
+        <button type="button" class="btn btn--for btn--for-on" data-mode="take" role="radio" aria-checked="true">RETIRER</button>
+        <button type="button" class="btn btn--for" data-mode="add" role="radio" aria-checked="false">AJOUTER</button>
+      </div></div>
+
+      <div class="row"><label for="adjust-g">QUANTITÉ (g)</label><div class="stepper">
+        <button type="button" class="btn btn--take" data-step="-0.5" aria-label="moins 0,5 g">-</button>
+        <input id="adjust-g" name="grams" inputmode="decimal" autocomplete="off" value="2">
+        <button type="button" class="btn btn--take" data-step="0.5" aria-label="plus 0,5 g">+</button>
+      </div></div>
+
+      <div class="adjust__preview" aria-live="polite"></div>
+
+      <div class="actions">
+        <button class="btn btn--primary" value="save">VALIDER</button>
+        <button class="btn btn--ghost" value="cancel" formnovalidate>ANNULER</button>
+      </div>
+    </form>`;
+
+  const form = dlg.querySelector('form');
+  const input = dlg.querySelector('#adjust-g');
+  const preview = dlg.querySelector('.adjust__preview');
+  const save = dlg.querySelector('[value="save"]');
+  const shareTag = dlg.querySelector('[data-share]');
+  const paint = () => {
+    // grams added are never "shared", so the tag only shows on a withdrawal
+    if (shareTag) shareTag.hidden = mode !== 'take';
+    const w = fresh().weight_g;
+    const next = adjustTarget(w, mode, input.value);
+    save.disabled = next == null || next === Math.round((Number(w) || 0) * 10) / 10;
+    preview.textContent = next == null
+      ? 'Quantité invalide'
+      : `${StashModel.formatTapeGrams(w)}  ->  ${StashModel.formatTapeGrams(next)}`;
+  };
+
+  dlg.querySelectorAll('[data-mode]').forEach((b) => {
+    b.onclick = () => {
+      mode = b.dataset.mode;
+      dlg.querySelectorAll('[data-mode]').forEach((o) => {
+        const on = o.dataset.mode === mode;
+        o.className = `btn btn--for${on ? ' btn--for-on' : ''}`;
+        o.setAttribute('aria-checked', String(on));
+      });
+      paint();
+    };
+  });
+  dlg.querySelectorAll('[data-step]').forEach((b) => {
+    b.onclick = () => {
+      const n = (parseGrams(input.value) || 0) + Number(b.dataset.step);
+      input.value = String(Math.max(0.5, Math.round(n * 10) / 10)).replace('.', ',');
+      paint();
+    };
+  });
+  input.addEventListener('input', paint);
+
+  form.addEventListener('submit', async (e) => {
+    // submitter, not returnValue: see the note in openForm
+    if (e.submitter && e.submitter.value === 'cancel') return;
+    e.preventDefault();
+    const next = adjustTarget(fresh().weight_g, mode, input.value);
+    if (next == null) return;
+    dlg.close();
+    try {
+      // grams added are a restock: only a withdrawal carries the share reason
+      await Api.update(jar.id, withReason({ weight_g: next }, mode === 'take' ? reason : 'self'));
+    } catch (err) {
+      alert(err.message);
+    }
     await loadAndRender();
-  } catch (err) {
-    alert(err.message);
-    await loadAndRender();
-  }
+  });
+
+  paint();
+  dlg.showModal();
+  if (input.select) input.select();
 }
 
 async function removeJar(jar) {
@@ -158,7 +245,7 @@ function openDetail(jar) {
   });
   dlg.querySelector('[data-act="close"]').onclick = () => dlg.close();
   dlg.querySelector('[data-act="edit"]').onclick = () => { dlg.close(); openForm(jar); };
-  dlg.querySelector('[data-act="adjust"]').onclick = () => { dlg.close(); adjustWeight(jar, reason); };
+  dlg.querySelector('[data-act="adjust"]').onclick = () => { dlg.close(); openAdjust(jar, reason); };
   dlg.querySelector('[data-act="delete"]').onclick = () => { dlg.close(); removeJar(jar); };
   dlg.querySelectorAll('[data-take]').forEach((b) => {
     b.onclick = () => { dlg.close(); takeFromJar(jar, Number(b.dataset.take), reason); };
