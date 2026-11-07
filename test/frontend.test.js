@@ -304,7 +304,7 @@ test('the total sign shows the runway once stats load', async () => {
   };
   ctx.Api = { list: async () => [], events: async () => [], stats: async () => READY };
   await ctx.loadAndRender();
-  assert.equal(eta.textContent, '~75 J');
+  assert.match(eta.textContent, /^jusqu'au \d\d\/\d\d(\/\d\d)?$/);
 });
 
 test('each daily bar carries its day and grams as a hover tip', () => {
@@ -562,4 +562,13 @@ test('the adjust dialog is a real form, escaped, with the share tag when sharing
   assert.match(dlg.html, /PARTAGE/);
   assert.match(dlg.html, /inputmode="decimal"/);
   assert.match(dlg.html, /data-mode="take"[^>]*aria-checked="true"/);
+});
+
+test('hudRunway gives the run-out day, with the year only when it is not this one', () => {
+  const { hudRunway } = loadApp();
+  const now = new Date(2026, 9, 2, 12);
+  assert.equal(hudRunway({ ready: true, days_left: 75 }, now), "jusqu'au 16/12");
+  assert.equal(hudRunway({ ready: true, days_left: 188 }, now), "jusqu'au 08/04/27");
+  assert.equal(hudRunway({ ready: true, days_left: null }, now), '');
+  assert.equal(hudRunway({ ready: false, days_left: 10 }, now), '');
 });
