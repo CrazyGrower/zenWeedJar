@@ -31,6 +31,9 @@ function consumedSince(db, since) {
 
 export function computeStats(db, { now = new Date() } = {}) {
   const total_g = db.prepare('SELECT COALESCE(SUM(weight_g), 0) AS t FROM jars').get().t;
+  // Someone else's jars still count in the stash and the run-out date; this
+  // only says how much of the total is theirs.
+  const others_g = db.prepare("SELECT COALESCE(SUM(weight_g), 0) AS t FROM jars WHERE owner = 'other'").get().t;
 
   // The window is as old as the journal, up to 30 days: a two-week-old journal
   // divides by 14, not 30, or the first month would read as a slow one.
@@ -70,7 +73,7 @@ export function computeStats(db, { now = new Date() } = {}) {
   `).all(sqlStamp(since));
 
   return {
-    total_g, ready, window_days, consumed_g, per_day_g, shared_g, outflow_per_day_g,
+    total_g, others_g, ready, window_days, consumed_g, per_day_g, shared_g, outflow_per_day_g,
     days_left, trend_pct, daily, top,
   };
 }

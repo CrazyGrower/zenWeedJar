@@ -2,6 +2,7 @@ export class ValidationError extends Error {}
 
 const STRING_FIELDS = ['harvest_date', 'notes', 'color_tag', 'bud_color'];
 const NUMBER_FIELDS = ['thc_percent', 'indica_pct'];
+const OWNERS = ['self', 'other'];
 
 // Clients send JSON, so a field can arrive as any JSON type. Only numbers and
 // numeric strings (what the HTML form submits) are meaningful here — without
@@ -32,6 +33,13 @@ function validate(data, { partial = false } = {}) {
     const w = toNumber(data.weight_g, message);
     if (w < 0) throw new ValidationError(message);
     out.weight_g = w;
+  }
+
+  // Whose weed it is. Someone else's weed never goes into your jar: it gets a
+  // jar of its own, marked 'other'.
+  if ('owner' in data) {
+    if (!OWNERS.includes(data.owner)) throw new ValidationError(`owner must be one of ${OWNERS.join(', ')}`);
+    out.owner = data.owner;
   }
 
   for (const f of STRING_FIELDS) {
@@ -89,12 +97,12 @@ export function createJar(db, data) {
   const v = validate(data);
   const row = {
     harvest_date: null, thc_percent: null, indica_pct: null,
-    notes: null, color_tag: null, bud_color: null, ...v,
+    notes: null, color_tag: null, bud_color: null, owner: 'self', ...v,
   };
   return db.transaction(() => {
     const info = db.prepare(`
-      INSERT INTO jars (name, harvest_date, weight_g, thc_percent, indica_pct, notes, color_tag, bud_color)
-      VALUES (@name, @harvest_date, @weight_g, @thc_percent, @indica_pct, @notes, @color_tag, @bud_color)
+      INSERT INTO jars (name, harvest_date, weight_g, thc_percent, indica_pct, notes, color_tag, bud_color, owner)
+      VALUES (@name, @harvest_date, @weight_g, @thc_percent, @indica_pct, @notes, @color_tag, @bud_color, @owner)
     `).run(row);
     const jar = getJar(db, info.lastInsertRowid);
     recordEvent(db, { jar_id: jar.id, jar_name: jar.name, kind: 'add', delta_g: jar.weight_g });
@@ -120,7 +128,7 @@ export function updateJar(db, id, data) {
     db.prepare(`
       UPDATE jars SET name=@name, harvest_date=@harvest_date, weight_g=@weight_g,
         thc_percent=@thc_percent, indica_pct=@indica_pct, notes=@notes, color_tag=@color_tag,
-        bud_color=@bud_color
+        bud_color=@bud_color, owner=@owner
       WHERE id=@id
     `).run({ ...merged, id });
     // Metadata-only edits (name, THC, cap colour) are not movements.

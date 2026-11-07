@@ -23,21 +23,23 @@ function withReason(data, reason) {
   return reason === 'share' ? { ...data, reason } : data;
 }
 
-async function takeFromJar(jar, n, reason = 'self') {
-  // the card may have been opened before the last reload landed
-  const fresh = jars.find((j) => j.id === jar.id) || jar;
-  try {
-    await Api.update(jar.id, withReason({ weight_g: StashModel.takeGrams(fresh.weight_g, n) }, reason));
-  } catch (err) {
-    alert(err.message);
-  }
-  await loadAndRender();
+// Whose weed the jar holds, picked at creation and changeable in EDITER.
+// Radios, not buttons, so the choice rides along in the form's FormData.
+function ownerHtml(current) {
+  const pick = current === 'other' ? 'other' : 'self';
+  const opt = (v, label) =>
+    `<label class="owner"><input type="radio" name="owner" value="${v}"${v === pick ? ' checked' : ''}><span>${label}</span></label>`;
+  return `<fieldset class="owners"><legend>À QUI</legend>${opt('self', 'À MOI')}${opt('other', 'PAS À MOI')}</fieldset>`;
+}
+
+function ownerTag(jar) {
+  return jar && jar.owner === 'other' ? ' · PAS À MOI' : '';
 }
 
 function openForm(jar) {
   const dlg = document.getElementById('form-dialog');
   const editing = !!jar;
-  const j = jar || { name: '', harvest_date: '', weight_g: '', color_tag: CAP_COLORS[0], bud_color: 'green' };
+  const j = jar || { name: '', harvest_date: '', weight_g: '', color_tag: CAP_COLORS[0], bud_color: 'green', owner: 'self' };
 
   dlg.innerHTML = `
     <form method="dialog" class="modal">
@@ -45,6 +47,7 @@ function openForm(jar) {
       <div class="row"><label>NOM *</label><input name="name" value="${escapeHtml(j.name)}" required></div>
       <div class="row"><label>RÉCOLTE (ex 13/07)</label><input name="harvest_date" value="${escapeHtml(j.harvest_date || '')}"></div>
       <div class="row"><label>POIDS (g) *</label><input name="weight_g" type="number" step="0.1" min="0" value="${j.weight_g}" required></div>
+      <div class="row">${ownerHtml(j.owner)}</div>
       <div class="row">${swatchesHtml(j.color_tag || CAP_COLORS[0])}</div>
       <div class="row">${budSwatchesHtml(j.bud_color, j.color_tag)}</div>
       <div class="actions">
@@ -101,19 +104,44 @@ function adjustTarget(weight_g, mode, text) {
   return mode === 'add' ? Math.round((w + n) * 10) / 10 : StashModel.takeGrams(w, n);
 }
 
-function openAdjust(jar, reason = 'self') {
+// A two-button pick (RETIRER / AJOUTER, MOI / PARTAGE): lights the chosen one
+// and reports its value.
+function wireToggle(dlg, attr, onPick) {
+  const buttons = dlg.querySelectorAll(`[${attr}]`);
+  buttons.forEach((b) => {
+    b.onclick = () => {
+      const value = b.getAttribute(attr);
+      buttons.forEach((o) => {
+        const on = o.getAttribute(attr) === value;
+        o.className = `btn btn--for${on ? ' btn--for-on' : ''}`;
+        o.setAttribute('aria-checked', String(on));
+      });
+      onPick(value);
+    };
+  });
+}
+
+function openAdjust(jar) {
   const dlg = document.getElementById('form-dialog');
   const fresh = () => jars.find((j) => j.id === jar.id) || jar;
   let mode = 'take';
+  // MOI each time: sharing is the exception, and a remembered PARTAGE would
+  // silently hide your own consumption.
+  let reason = 'self';
 
   dlg.innerHTML = `
     <form method="dialog" class="modal" novalidate>
       <h2>AJUSTER</h2>
-      <div class="sub">${escapeHtml(jar.name)}${reason === 'share' ? '<span data-share> · PARTAGE</span>' : ''}</div>
+      <div class="sub">${escapeHtml(jar.name)}${ownerTag(jar)}</div>
 
       <div class="row"><div class="for" role="radiogroup" aria-label="Sens">
         <button type="button" class="btn btn--for btn--for-on" data-mode="take" role="radio" aria-checked="true">RETIRER</button>
         <button type="button" class="btn btn--for" data-mode="add" role="radio" aria-checked="false">AJOUTER</button>
+      </div></div>
+
+      <div class="row" data-for-row><label>POUR</label><div class="for" role="radiogroup" aria-label="Pour qui">
+        <button type="button" class="btn btn--for btn--for-on" data-for="self" role="radio" aria-checked="true">MOI</button>
+        <button type="button" class="btn btn--for" data-for="share" role="radio" aria-checked="false">PARTAGE</button>
       </div></div>
 
       <div class="row"><label for="adjust-g">QUANTITÉ (g)</label><div class="stepper">
@@ -134,10 +162,10 @@ function openAdjust(jar, reason = 'self') {
   const input = dlg.querySelector('#adjust-g');
   const preview = dlg.querySelector('.adjust__preview');
   const save = dlg.querySelector('[value="save"]');
-  const shareTag = dlg.querySelector('[data-share]');
+  const forRow = dlg.querySelector('[data-for-row]');
   const paint = () => {
-    // grams added are never "shared", so the tag only shows on a withdrawal
-    if (shareTag) shareTag.hidden = mode !== 'take';
+    // grams added are a restock, never "shared": the pick only shows on a withdrawal
+    if (forRow) forRow.hidden = mode !== 'take';
     const w = fresh().weight_g;
     const next = adjustTarget(w, mode, input.value);
     save.disabled = next == null || next === Math.round((Number(w) || 0) * 10) / 10;
@@ -146,17 +174,8 @@ function openAdjust(jar, reason = 'self') {
       : `${StashModel.formatTapeGrams(w)}  ->  ${StashModel.formatTapeGrams(next)}`;
   };
 
-  dlg.querySelectorAll('[data-mode]').forEach((b) => {
-    b.onclick = () => {
-      mode = b.dataset.mode;
-      dlg.querySelectorAll('[data-mode]').forEach((o) => {
-        const on = o.dataset.mode === mode;
-        o.className = `btn btn--for${on ? ' btn--for-on' : ''}`;
-        o.setAttribute('aria-checked', String(on));
-      });
-      paint();
-    };
-  });
+  wireToggle(dlg, 'data-mode', (v) => { mode = v; paint(); });
+  wireToggle(dlg, 'data-for', (v) => { reason = v; });
   dlg.querySelectorAll('[data-step]').forEach((b) => {
     b.onclick = () => {
       const n = (parseGrams(input.value) || 0) + Number(b.dataset.step);
@@ -174,7 +193,6 @@ function openAdjust(jar, reason = 'self') {
     if (next == null) return;
     dlg.close();
     try {
-      // grams added are a restock: only a withdrawal carries the share reason
       await Api.update(jar.id, withReason({ weight_g: next }, mode === 'take' ? reason : 'self'));
     } catch (err) {
       alert(err.message);
@@ -205,21 +223,10 @@ function openDetail(jar) {
   dlg.innerHTML = `
     <div class="modal">
       <h2>${escapeHtml(jar.name)}</h2>
-      <div class="sub">RÉCOLTE ${escapeHtml(jar.harvest_date || '—')}</div>
+      <div class="sub">RÉCOLTE ${escapeHtml(jar.harvest_date || '—')}${ownerTag(jar)}</div>
 
       <div class="row"><label>POIDS</label>
         <div class="weight">${escapeHtml(StashModel.formatTapeGrams(weight))}</div></div>
-
-      <div class="row"><label>POUR</label><div class="for" role="radiogroup" aria-label="Pour qui">
-        <button class="btn btn--for btn--for-on" data-for="self" role="radio" aria-checked="true">MOI</button>
-        <button class="btn btn--for" data-for="share" role="radio" aria-checked="false">PARTAGE</button>
-      </div></div>
-
-      <div class="row"><label>RETIRER</label><div class="take">
-        <button class="btn btn--take" data-take="0.5">-0,5 g</button>
-        <button class="btn btn--take" data-take="1">-1 g</button>
-        <button class="btn btn--take" data-take="2">-2 g</button>
-      </div></div>
 
       <div class="actions">
         <button class="btn btn--primary" data-act="adjust">AJUSTER POIDS</button>
@@ -229,27 +236,10 @@ function openDetail(jar) {
       </div>
     </div>`;
 
-  // Back to MOI each time the card opens: sharing is the exception, and a
-  // remembered PARTAGE would silently hide your own consumption.
-  let reason = 'self';
-  const forButtons = dlg.querySelectorAll('[data-for]');
-  forButtons.forEach((b) => {
-    b.onclick = () => {
-      reason = b.dataset.for;
-      forButtons.forEach((o) => {
-        const on = o.dataset.for === reason;
-        o.className = `btn btn--for${on ? ' btn--for-on' : ''}`;
-        o.setAttribute('aria-checked', String(on));
-      });
-    };
-  });
   dlg.querySelector('[data-act="close"]').onclick = () => dlg.close();
   dlg.querySelector('[data-act="edit"]').onclick = () => { dlg.close(); openForm(jar); };
-  dlg.querySelector('[data-act="adjust"]').onclick = () => { dlg.close(); openAdjust(jar, reason); };
+  dlg.querySelector('[data-act="adjust"]').onclick = () => { dlg.close(); openAdjust(jar); };
   dlg.querySelector('[data-act="delete"]').onclick = () => { dlg.close(); removeJar(jar); };
-  dlg.querySelectorAll('[data-take]').forEach((b) => {
-    b.onclick = () => { dlg.close(); takeFromJar(jar, Number(b.dataset.take), reason); };
-  });
   if (window.Scene3D && window.Scene3D.select) {
     window.Scene3D.select(jar.id);
     dlg.addEventListener('close', () => window.Scene3D.select(null), { once: true });
@@ -381,7 +371,12 @@ function statsBody(stats, now = new Date()) {
       <div class="stats__line">${stats.top
         .map((t) => `${escapeHtml(t.name)} ${formatGrams(t.g)}g`).join(' · ')}</div></div>`;
 
-  return `${head}${rate}${shared}
+  // Someone else's jars count in the stash; this says how much is theirs.
+  const others = !(Number(stats.others_g) > 0) ? '' : `
+    <div class="row"><label>EN RÉSERVE</label>
+      <div class="stats__line">${formatGrams(stats.total_g)} g · dont ${formatGrams(stats.others_g)} g pas à moi</div></div>`;
+
+  return `${head}${rate}${shared}${others}
     <div class="row"><label>14 DERNIERS JOURS</label><div class="stats__bars">${bars}</div></div>
     ${top}`;
 }
@@ -466,7 +461,7 @@ function syncScene() {
 
 function fallbackHtml(list) {
   if (!list || list.length === 0) return '<p class="fallback__empty">Aucun bocal pour l’instant.</p>';
-  return list.map((jar) => `<button class="fallback__jar" type="button" data-id="${Number(jar.id)}">` +
+  return list.map((jar) => `<button class="fallback__jar${jar.owner === 'other' ? ' fallback__jar--other' : ''}" type="button" data-id="${Number(jar.id)}">` +
     `<span>${escapeHtml(jar.name)}</span><b>${escapeHtml(StashModel.formatTapeGrams(jar.weight_g))}</b></button>`).join('');
 }
 

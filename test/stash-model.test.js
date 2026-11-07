@@ -168,3 +168,9 @@ test('sceneAt survives polar day and night', () => {
   assert.equal(M.sceneAt(at('2026-06-21T00:00:00Z'), 78, 15), 'day');
   assert.equal(M.sceneAt(at('2026-12-21T12:00:00Z'), 78, 15), 'night');
 });
+
+test('tapeLines flags someone else\'s jar for the red edge', () => {
+  const M = load();
+  assert.equal(M.tapeLines(jar(1, { owner: 'other' })).other, true);
+  assert.equal(M.tapeLines(jar(1, { owner: 'self' })).other, undefined);
+});

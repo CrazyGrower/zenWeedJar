@@ -393,27 +393,6 @@ function captureDialog(ctx) {
   return dlg;
 }
 
-test('the jar card offers -0.5, -1 and -2 g in ASCII', () => {
-  const ctx = loadApp();
-  const dlg = captureDialog(ctx);
-  ctx.openDetail({ id: 1, name: 'Mango', weight_g: 65, harvest_date: '23/07', color_tag: '#e2a04c' });
-  for (const n of ['0.5', '1', '2']) assert.ok(dlg.html.includes(`data-take="${n}"`), `a ${n} g button`);
-  assert.ok(dlg.html.includes('-0,5 g') && !dlg.html.includes('−'), 'ASCII hyphen only');
-  assert.ok(dlg.html.includes('65 g'));
-});
-
-test('takeFromJar saves the new weight, never below zero, then reloads', async () => {
-  const ctx = loadApp();
-  const calls = [];
-  let reloaded = 0;
-  // loadAndRender writes to the HUD; any element will do
-  ctx.document.getElementById = () => ({ textContent: '', hidden: true, innerHTML: '', querySelectorAll: () => [] });
-  ctx.Api = { update: async (id, data) => { calls.push([id, data]); }, list: async () => { reloaded++; return []; }, events: async () => [], stats: async () => ({}) };
-  await ctx.takeFromJar({ id: 7, weight_g: 0.4 }, 1);
-  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [[7, { weight_g: 0 }]]);
-  assert.equal(reloaded, 1);
-});
-
 test('swatchesHtml checks the current cap and keeps a custom one', () => {
   const { swatchesHtml } = loadApp();
   const html = swatchesHtml('#e2a04c');
@@ -445,16 +424,6 @@ test('without three.js the canvas is hidden too, so only the fallback list is an
   ctx.document.getElementById = (id) => (id === 'scene' ? canvas : null);
   assert.equal(ctx.mountScene(), false);
   assert.equal(canvas.hidden, true);
-});
-
-test('takeFromJar takes from the freshest weight, not the one the card was opened with', async () => {
-  const ctx = loadApp();
-  const calls = [];
-  ctx.document.getElementById = (id) => (id === 'offline-notice' ? null : { textContent: '', hidden: true, innerHTML: '', querySelectorAll: () => [] });
-  ctx.Api = { update: async (id, data) => { calls.push(data.weight_g); }, list: async () => [{ id: 7, weight_g: 3 }], events: async () => [], stats: async () => ({}) };
-  await ctx.loadAndRender();
-  await ctx.takeFromJar({ id: 7, weight_g: 10 }, 1);
-  assert.deepEqual(calls, [2]);
 });
 
 test('the scene re-frames when the HUD or the bottom bar changes height', () => {
@@ -502,24 +471,6 @@ test('every stylesheet and script the page loads carries the current asset versi
 
 // --- shared withdrawals ------------------------------------------------------
 
-test('the jar card offers MOI and PARTAGE, MOI picked', () => {
-  const ctx = loadApp();
-  const dlg = captureDialog(ctx);
-  ctx.openDetail({ id: 1, name: 'Mango', weight_g: 65, color_tag: '#e2a04c' });
-  assert.match(dlg.html, /data-for="self"[^>]*aria-checked="true"/);
-  assert.match(dlg.html, /data-for="share"[^>]*aria-checked="false"/);
-});
-
-test('takeFromJar sends the share reason only for a shared take', async () => {
-  const ctx = loadApp();
-  const calls = [];
-  ctx.document.getElementById = () => ({ textContent: '', hidden: true, innerHTML: '', querySelectorAll: () => [] });
-  ctx.Api = { update: async (id, data) => { calls.push(data); }, list: async () => [], events: async () => [], stats: async () => ({}) };
-  await ctx.takeFromJar({ id: 7, weight_g: 10 }, 1, 'share');
-  await ctx.takeFromJar({ id: 7, weight_g: 10 }, 1);
-  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [{ weight_g: 9, reason: 'share' }, { weight_g: 9 }]);
-});
-
 test('the journal marks a shared withdrawal', () => {
   const { eventLine } = loadApp();
   const line = eventLine({ created_at: '2026-10-02 12:00:00', delta_g: -1, jar_name: 'Mango', kind: 'share', total_after_g: 64 });
@@ -554,16 +505,6 @@ test('adjustTarget adds or takes, never below zero', () => {
   assert.equal(adjustTarget(10, 'take', 'x'), null);
 });
 
-test('the adjust dialog is a real form, escaped, with the share tag when sharing', () => {
-  const ctx = loadApp();
-  const dlg = captureDialog(ctx);
-  ctx.openAdjust({ id: 1, name: '<b>Mango</b>', weight_g: 65 }, 'share');
-  assert.ok(!dlg.html.includes('<b>Mango'), 'the name is escaped');
-  assert.match(dlg.html, /PARTAGE/);
-  assert.match(dlg.html, /inputmode="decimal"/);
-  assert.match(dlg.html, /data-mode="take"[^>]*aria-checked="true"/);
-});
-
 test('hudRunway gives the run-out day, with the year only when it is not this one', () => {
   const { hudRunway } = loadApp();
   const now = new Date(2026, 9, 2, 12);
@@ -571,4 +512,42 @@ test('hudRunway gives the run-out day, with the year only when it is not this on
   assert.equal(hudRunway({ ready: true, days_left: 188 }, now), "jusqu'au 08/04/27");
   assert.equal(hudRunway({ ready: true, days_left: null }, now), '');
   assert.equal(hudRunway({ ready: false, days_left: 10 }, now), '');
+});
+
+test('the jar card has no quick-take buttons and no share pick any more', () => {
+  const ctx = loadApp();
+  const dlg = captureDialog(ctx);
+  ctx.openDetail({ id: 1, name: 'Mango', weight_g: 65, color_tag: '#e2a04c' });
+  assert.ok(!dlg.html.includes('data-take'));
+  assert.ok(!dlg.html.includes('data-for'));
+  assert.ok(dlg.html.includes('data-act="adjust"'));
+  assert.ok(dlg.html.includes('65 g'));
+});
+
+test('the adjust dialog is a real form, escaped, with MOI picked by default', () => {
+  const ctx = loadApp();
+  const dlg = captureDialog(ctx);
+  ctx.openAdjust({ id: 1, name: '<b>Mango</b>', weight_g: 65 });
+  assert.ok(!dlg.html.includes('<b>Mango'), 'the name is escaped');
+  assert.match(dlg.html, /inputmode="decimal"/);
+  assert.match(dlg.html, /data-mode="take"[^>]*aria-checked="true"/);
+  assert.match(dlg.html, /data-for="self"[^>]*aria-checked="true"/);
+  assert.match(dlg.html, /data-for="share"[^>]*aria-checked="false"/);
+});
+
+test('the jar form picks À MOI by default and keeps PAS À MOI on edit', () => {
+  const { ownerHtml } = loadApp();
+  assert.match(ownerHtml(undefined), /value="self" checked/);
+  assert.match(ownerHtml('other'), /value="other" checked/);
+});
+
+test('someone else\'s jar says so on the card and in the stats', () => {
+  const ctx = loadApp();
+  const dlg = captureDialog(ctx);
+  ctx.openDetail({ id: 1, name: 'Liver', weight_g: 55, owner: 'other' });
+  assert.match(dlg.html, /PAS À MOI/);
+  ctx.openDetail({ id: 2, name: 'Mango', weight_g: 65, owner: 'self' });
+  assert.doesNotMatch(dlg.html, /PAS À MOI/);
+  assert.doesNotMatch(ctx.statsBody(READY), /pas à moi/);
+  assert.match(ctx.statsBody({ ...READY, others_g: 55 }), /dont 55 g pas à moi/);
 });

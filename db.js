@@ -21,6 +21,7 @@ export function openDb(dbPath = process.env.DB_PATH || './data/stash.db') {
       notes        TEXT,
       color_tag    TEXT,
       bud_color    TEXT,
+      owner        TEXT NOT NULL DEFAULT 'self',
       created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -42,6 +43,8 @@ export function openDb(dbPath = process.env.DB_PATH || './data/stash.db') {
   // their jars keep NULL and the front falls back to the cap tint.
   const cols = db.prepare('PRAGMA table_info(jars)').all().map((c) => c.name);
   if (!cols.includes('bud_color')) db.exec('ALTER TABLE jars ADD COLUMN bud_color TEXT');
+  // Whose weed the jar holds: 'self' or 'other'. Older jars are all yours.
+  if (!cols.includes('owner')) db.exec("ALTER TABLE jars ADD COLUMN owner TEXT NOT NULL DEFAULT 'self'");
 
   const { n } = db.prepare('SELECT COUNT(*) AS n FROM jars').get();
   if (n === 0) {
