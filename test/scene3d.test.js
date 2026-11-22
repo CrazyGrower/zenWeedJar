@@ -43,8 +43,9 @@ function mountStage() {
   const ctx2dProxy = new Proxy(ctx2d, { get: (o, k) => (k in o ? o[k] : () => {}) });
   const doc = { createElement: () => ({ style: {}, getContext: () => ctx2dProxy, remove() {} }) };
   const frames = [];
+  const win = {};
   const ctx = vm.createContext({ console, Math, Uint8ClampedArray, Float32Array, performance, document: doc, innerWidth: 390, innerHeight: 844,
-    addEventListener() {}, matchMedia: () => ({ matches: false }), requestAnimationFrame: (f) => frames.push(f) });
+    addEventListener: (type, fn) => { win[type] = fn; }, matchMedia: () => ({ matches: false }), requestAnimationFrame: (f) => frames.push(f) });
   ctx.window = ctx;
   vm.runInContext(fs.readFileSync(path.join(PUBLIC, 'vendor/three.min.js'), 'utf8'), ctx);
   let drawn = null;
@@ -52,7 +53,9 @@ function mountStage() {
   for (const f of ['stash-model.js', 'tape-label.js', ...SCENE_FILES]) vm.runInContext(fs.readFileSync(path.join(PUBLIC, f), 'utf8'), ctx);
   const S = ctx.Scene3D;
   assert.equal(S.mount(canvas, { appendChild() {} }), true);
-  return { S, listeners, classes, scene: () => drawn };
+  // run the render loop n more frames
+  const run = (n) => { for (let i = 0; i < n; i++) frames.pop()(); };
+  return { S, listeners, classes, win, run, scene: () => drawn };
 }
 
 const JARS = [1, 2, 3, 4].map((id) => ({ id, name: `J${id}`, weight_g: 20 * id, color_tag: '#b07d9c', harvest_date: '13/07' }));
@@ -104,4 +107,30 @@ test('refit reads the overlay heights again', () => {
   const { S } = mountStage();
   assert.equal(typeof S.refit, 'function');
   assert.doesNotThrow(() => S.refit());
+});
+
+test('the cat watches the pointer: pupils and head turn its way, and come back when it leaves', () => {
+  const { win, run, scene } = mountStage();
+  run(1);
+  const pupils = [];
+  scene().traverse((o) => { if (o.userData && typeof o.userData.x0 === 'number') pupils.push(o); });
+  assert.equal(pupils.length, 2, 'two pupils');
+  const head = pupils[0].parent.parent;
+  const rest = head.rotation.y;
+  const offset = () => pupils[0].position.x - pupils[0].userData.x0;
+
+  // the face looks down local -z towards the room: screen right is local -x
+  win.pointermove({ clientX: 5000, clientY: 400 });
+  run(60);
+  assert.ok(offset() < -0.01, 'pupils slide to the right of the screen');
+  assert.ok(head.rotation.y > rest + 0.2, 'the head turns right');
+
+  win.pointermove({ clientX: -5000, clientY: 400 });
+  run(60);
+  assert.ok(offset() > 0.01, 'pupils slide to the left');
+  assert.ok(head.rotation.y < rest - 0.2, 'the head turns left');
+
+  win.mouseout({ relatedTarget: null });
+  run(90);
+  assert.ok(Math.abs(offset()) < 0.001, 'eyes back to centre once the pointer has left the page');
 });

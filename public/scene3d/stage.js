@@ -144,6 +144,30 @@
     const hit = ray.intersectObjects(glasses, false)[0];
     return hit ? hit.object.userData.jarId : null;
   }
+  // where the cat looks: the last pointer position, null once it left the page
+  let gaze = null;
+  const look = { x: 0, y: 0 }, headPos = new THREE.Vector3();
+  function watchPointer() {
+    const see = (e) => { gaze = { x: e.clientX, y: e.clientY }; };
+    global.addEventListener('pointermove', see, { passive: true });
+    global.addEventListener('pointerdown', see, { passive: true });
+    // a mouseout with nowhere to go next is the pointer leaving the page
+    global.addEventListener('mouseout', (e) => { if (!e.relatedTarget) gaze = null; });
+  }
+  // the pointer's direction from the cat's head, each axis in [-1, 1]; full
+  // turn is reached a third of the screen away
+  function aimCat(w, h) {
+    let tx = 0, ty = 0;
+    if (gaze) {
+      const r = canvas.getBoundingClientRect();
+      cat.head.getWorldPosition(headPos).project(camera);
+      const reach = Math.max(w, h) / 3;
+      tx = THREE.MathUtils.clamp((gaze.x - r.left - (headPos.x + 1) / 2 * w) / reach, -1, 1);
+      ty = THREE.MathUtils.clamp((gaze.y - r.top - (1 - headPos.y) / 2 * h) / reach, -1, 1);
+    }
+    look.x += (tx - look.x) * 0.12; look.y += (ty - look.y) * 0.12;
+    cat.look(look.x, look.y);
+  }
   function bindPointer() {
     canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, yaw: yawT, pitch: pitchT, moved: false }; canvas.setPointerCapture(e.pointerId); });
     canvas.addEventListener('pointermove', (e) => {
@@ -189,6 +213,7 @@
       cat.tail.rotation.z = Math.sin(t * 1.3) * 0.25;
       cat.eyes.scale.y = (t % 4.3) < 0.14 ? 0.15 : 1;
       cat.chest.scale.y = 0.13 * (1 + Math.sin(t * 2.2) * 0.02);
+      aimCat(w, h);
     }
     if (!reduceMotion) {
       const p = dustGeo.attributes.position;
@@ -216,6 +241,7 @@
     shelves = M.MIN_SHELVES;
     rebuildRoom();
     bindPointer();
+    if (!reduceMotion) watchPointer();
     global.addEventListener('resize', resize);
     resize();
     // tape labels are drawn with the pixel fonts: repaint once they arrive

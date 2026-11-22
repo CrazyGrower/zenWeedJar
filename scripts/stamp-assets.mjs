@@ -1,5 +1,5 @@
-// Stamps public/index.html with a content hash on every local stylesheet and
-// script (?v=…). The proxy in front of the NAS caches static files for half a
+// Stamps public/index.html with a content hash on every local stylesheet,
+// script and icon (?v=…). The proxy in front of the NAS caches static files for half a
 // day and phones honour that too; a new URL per deploy is what gets a change
 // to them at once. Run `npm run stamp` after touching anything the page loads;
 // the frontend tests fail until the stamp matches.
@@ -8,7 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-const REF = /(<(?:script src|link rel="stylesheet" href)=")(\/[^"?]+)(?:\?v=([^"]*))?(")/g;
+const REF = /(<(?:script src|link rel="(?:stylesheet|icon|apple-touch-icon)" href)=")(\/[^"?]+)(?:\?v=([^"]*))?(")/g;
 
 export function localAssets(html) {
   return [...html.matchAll(REF)].map((m) => ({ path: m[2], version: m[3] || null }));
