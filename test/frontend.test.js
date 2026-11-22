@@ -9,6 +9,7 @@ import path from 'path';
 import vm from 'vm';
 import { fileURLToPath } from 'url';
 import { assetVersion, localAssets } from '../scripts/stamp-assets.mjs';
+import { loadIcon, renderPng, ICON_FILES } from '../scripts/make-icons.mjs';
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const read = (f) => fs.readFileSync(path.join(PUBLIC, f), 'utf8');
@@ -550,4 +551,35 @@ test('someone else\'s jar says so on the card and in the stats', () => {
   assert.doesNotMatch(dlg.html, /PAS À MOI/);
   assert.doesNotMatch(ctx.statsBody(READY), /pas à moi/);
   assert.match(ctx.statsBody({ ...READY, others_g: 55 }), /dont 55 g pas à moi/);
+});
+
+// --- the icon ----------------------------------------------------------------
+
+test('the page declares the tab icon and the iPhone home-screen icon, both versioned', () => {
+  const html = read('index.html');
+  assert.match(html, /<link rel="icon" href="\/favicon\.png\?v=[0-9a-f]+"/);
+  assert.match(html, /<link rel="apple-touch-icon" href="\/apple-touch-icon\.png\?v=[0-9a-f]+"/);
+  const paths = localAssets(html).map((r) => r.path);
+  assert.ok(paths.includes('/favicon.png') && paths.includes('/apple-touch-icon.png') && paths.includes('/favicon.js'));
+});
+
+test('the icon files on disk are the current drawing — run npm run icons', () => {
+  const grid = loadIcon().draw(0);
+  for (const [name, size] of Object.entries(ICON_FILES)) {
+    assert.ok(fs.readFileSync(path.join(PUBLIC, name)).equals(renderPng(grid, size)), `${name} is stale`);
+  }
+});
+
+test('the icon cat has yellow-to-green eyes, blinks and flicks its tail', () => {
+  const icon = loadIcon();
+  const rest = icon.draw(0);
+  assert.equal(rest.length, 32);
+  assert.equal(rest[13][12], '#e2cf4c', 'yellow rim');
+  assert.equal(rest[13][13], '#86c24e', 'green by the pupil');
+  const poses = new Set();
+  for (let f = 0; f < icon.FRAMES; f++) poses.add(icon.pose(f));
+  assert.deepEqual([...poses].sort(), ['blink', 'flick', 'rest']);
+  const blink = icon.draw(10), flick = icon.draw(20);
+  assert.notEqual(blink[13][13], '#86c24e', 'eyes shut');
+  assert.notDeepEqual(flick[21], rest[21], 'the tail tip moved');
 });

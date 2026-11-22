@@ -7,8 +7,13 @@
   // the prototype keys bud colours by 'G' / 'P'
   const BUD_COLORS = { G: S3.BUD_COLORS.green, P: S3.BUD_COLORS.purple };
 
+  const CAT_SCALE = 1.4, HEAD_YAW = 1.3;
+  const EYE_X = 0.052, EYE_Y = 0.012, PUPIL_REACH = 0.022;
+
   function makeCat(parent, x, y, z) {
-    const C = new THREE.Group(); C.position.set(x, y, z); C.rotation.y = Math.PI / 2;
+    // CAT_SCALE: at the scene's grain the cat is only a few dozen pixels
+    // tall; bigger, its face and eyes land on whole pixels and read clearly
+    const C = new THREE.Group(); C.position.set(x, y, z); C.rotation.y = Math.PI / 2; C.scale.setScalar(CAT_SCALE);
     const fur = toon(0x1a141c);
     blob(C, 0.16, 0.15, 0.19, 0, 0.14, 0.06, fur);                       // haunches
     const chest = blob(C, 0.11, 0.13, 0.1, 0, 0.24, -0.08, fur); chest.rotation.x = -0.35;
@@ -17,25 +22,43 @@
       blob(C, 0.036, 0.022, 0.045, sd * 0.045, 0.02, -0.14, fur);       // paws
       blob(C, 0.05, 0.03, 0.09, sd * 0.11, 0.03, 0.07, fur);            // tucked back feet
     });
-    const head = new THREE.Group(); head.position.set(0, 0.39, -0.11); head.rotation.y = 1.3; C.add(head);
+    const head = new THREE.Group(); head.position.set(0, 0.39, -0.11); head.rotation.order = 'YXZ'; head.rotation.y = HEAD_YAW; C.add(head);
     blob(head, 0.115, 0.1, 0.105, 0, 0, 0, fur);
     blob(head, 0.125, 0.065, 0.085, 0, -0.035, -0.015, fur);            // cheeks
     blob(head, 0.045, 0.03, 0.03, 0, -0.045, -0.085, toon(0x2a222c));   // muzzle
     const nose = new THREE.Mesh(new THREE.CircleGeometry(0.013, 3), basic(0xd98a9a)); nose.rotation.set(0, Math.PI, Math.PI / 2); nose.position.set(0, -0.025, -0.112); head.add(nose);
     const eyes = new THREE.Group(); head.add(eyes);
+    const pupils = [], irises = [];
     [-1, 1].forEach((sd) => {
       const ear = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.085, 4), fur); ear.position.set(sd * 0.068, 0.095, 0.005); ear.rotation.set(0, Math.PI / 4, -sd * 0.28); head.add(ear);
       const inner = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.045, 4), toon(0x3a2430)); inner.position.set(sd * 0.068, 0.088, -0.03); inner.rotation.set(0, Math.PI / 4, -sd * 0.28); head.add(inner);
-      const eye = new THREE.Mesh(new THREE.CircleGeometry(0.03, 10), basic(0xffd34d)); eye.rotation.y = Math.PI; eye.position.set(sd * 0.046, 0.012, -0.1); eyes.add(eye);
-      const pupil = new THREE.Mesh(new THREE.PlaneGeometry(0.012, 0.042), basic(0x0c090c)); pupil.rotation.y = Math.PI; pupil.position.set(sd * 0.046, 0.012, -0.102); eyes.add(pupil);
-      const glint = new THREE.Mesh(new THREE.PlaneGeometry(0.01, 0.01), basic(0xfff6d8)); glint.rotation.y = Math.PI; glint.position.set(sd * 0.046 + 0.012, 0.024, -0.103); eyes.add(glint);
+      // square eyes and pupils: at this size a disc turns into pixel noise
+      // yellow at the rim, green towards the pupil: a flat green glares
+      const eye = new THREE.Mesh(new THREE.PlaneGeometry(0.078, 0.058), basic(0xe2cf4c)); eye.rotation.y = Math.PI; eye.position.set(sd * EYE_X, EYE_Y, -0.1); eyes.add(eye);
+      const iris = new THREE.Mesh(new THREE.PlaneGeometry(0.036, 0.058), basic(0x86c24e)); iris.rotation.y = Math.PI; iris.position.set(sd * EYE_X, EYE_Y, -0.101); eyes.add(iris);
+      iris.userData.ix0 = sd * EYE_X;
+      irises.push(iris);
+      const pupil = new THREE.Mesh(new THREE.PlaneGeometry(0.022, 0.042), basic(0x0c090c)); pupil.rotation.y = Math.PI; pupil.position.set(sd * EYE_X, EYE_Y, -0.102); eyes.add(pupil);
+      pupil.userData.x0 = sd * EYE_X;
+      pupils.push(pupil);
     });
+    // dx, dy in [-1, 1], screen directions from the cat's head: the pupils
+    // slide inside the eyes and the head turns a little the same way. The
+    // face looks down local -z and the cat faces the room, so screen right
+    // is local -x.
+    function look(dx, dy) {
+      // the green follows the pupil half-way, so it stays inside the eye
+      irises.forEach((i) => { i.position.x = i.userData.ix0 - dx * PUPIL_REACH * 0.5; });
+      pupils.forEach((p) => { p.position.x = p.userData.x0 - dx * PUPIL_REACH; p.position.y = EYE_Y - dy * PUPIL_REACH * 0.25; });
+      head.rotation.y = HEAD_YAW + dx * 0.4;
+      head.rotation.x = -dy * 0.22;
+    }
     // tail: a chain of beads hanging over the shelf edge
     const tail = new THREE.Group(); tail.position.set(-0.2, 0.05, 0.12); C.add(tail);
     let seg = tail;
     for (let i = 0; i < 6; i++) { const sg = new THREE.Group(); sg.position.y = i ? -0.075 : 0; sg.rotation.x = i ? 0.12 : 0; seg.add(sg); blob(sg, 0.03, 0.045, 0.03, 0, -0.035, 0, fur); seg = sg; }
     parent.add(C);
-    return { tail, eyes, chest };
+    return { tail, eyes, chest, head, look };
   }
 
   function makeLeaf(scale, color) {
